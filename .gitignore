@@ -1,0 +1,16 @@
+# Virtual Environment
+venv/
+*.pyenv
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# IDE files
+.vscode/
+.idea/
+
+# Misc
+*.log
+.DS_Store

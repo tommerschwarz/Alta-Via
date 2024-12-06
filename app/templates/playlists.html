@@ -5,17 +5,22 @@
 </head>
 <body>
     <h1>Select Playlists to Compare</h1>
-    <form action="{{ url_for('compare') }}" method="post">
+    <form action="{{ url_for('main.compare') }}" method="post">
+        <h2>Select First Playlist</h2>
         <select name="playlist1">
             {% for playlist in playlists %}
             <option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>
             {% endfor %}
         </select>
+        
+        <h2>Select Second Playlist</h2>
         <select name="playlist2">
             {% for playlist in playlists %}
             <option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>
             {% endfor %}
         </select>
+        
+        <br><br>
         <input type="submit" value="Compare Playlists">
     </form>
 </body>
