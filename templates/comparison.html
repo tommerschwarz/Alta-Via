@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Playlist Comparison</title>
+</head>
+<body>
+    <h1>Playlist Comparison Results</h1>
+    <p>Similarity: {{ result.similarity_percentage }}%</p>
+    <p>Total Tracks in Playlist 1: {{ result.total_tracks_1 }}</p>
+    <p>Total Tracks in Playlist 2: {{ result.total_tracks_2 }}</p>
+    
+    <h2>Similar Tracks</h2>
+    <ul>
+        {% for track in result.similar_tracks %}
+        <li>
+            {{ track.name }} by {{ track.artist }} 
+            (Album: {{ track.album }})
+        </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

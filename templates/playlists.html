@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Your Playlists</title>
+</head>
+<body>
+    <h1>Select Playlists to Compare</h1>
+    <form action="{{ url_for('compare') }}" method="post">
+        <select name="playlist1">
+            {% for playlist in playlists %}
+            <option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>
+            {% endfor %}
+        </select>
+        <select name="playlist2">
+            {% for playlist in playlists %}
+            <option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Compare Playlists">
+    </form>
+</body>
+</html>
