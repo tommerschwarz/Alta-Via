@@ -1,27 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Your Playlists</title>
+    <title>Select Playlists - MetaWrapped</title>
 </head>
 <body>
-    <h1>Select Playlists to Compare</h1>
-    <form action="{{ url_for('main.compare') }}" method="post">
-        <h2>Select First Playlist</h2>
-        <select name="playlist1">
-            {% for playlist in playlists %}
-            <option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>
-            {% endfor %}
-        </select>
-        
-        <h2>Select Second Playlist</h2>
-        <select name="playlist2">
-            {% for playlist in playlists %}
-            <option value="{{ playlist['id'] }}">{{ playlist['name'] }}</option>
-            {% endfor %}
-        </select>
-        
-        <br><br>
-        <input type="submit" value="Compare Playlists">
+    <h1>Select Two Playlists to Compare</h1>
+
+    <form action="{{ url_for('main.compare') }}" method="POST">
+        <div>
+            <h3>First Playlist:</h3>
+            <select name="playlist1" required>
+                <option value="">Select a playlist...</option>
+                {% for playlist in playlists %}
+                    <option value="{{ playlist.id }}">{{ playlist.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <h3>Second Playlist:</h3>
+            <select name="playlist2" required>
+                <option value="">Select a playlist...</option>
+                {% for playlist in playlists %}
+                    <option value="{{ playlist.id }}">{{ playlist.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit">Compare Playlists</button>
     </form>
+
+    <div>
+        <a href="{{ url_for('main.index') }}">Back to Home</a>
+    </div>
 </body>
 </html>
