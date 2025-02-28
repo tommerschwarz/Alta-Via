@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiWrapped</title>
+    
+    <!-- React and ReactDOM -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    
+    <!-- Recharts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.min.js"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+</head>
+<body>
+        <div class="container" style="
+        max-width: 600px;
+        margin: 60px auto;
+        padding: 40px;
+        text-align: center;
+        background-color: #F2F0ED;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    ">
+        <h2 style="
+            margin-bottom: 24px;
+            color: #633514;
+            font-family: Inter, sans-serif;
+            font-weight: 500;
+            font-size: 28px;
+        ">Welcome, {{ username }}</h2>
+        
+        {% if available_years %}
+            <p style="
+                margin-bottom: 30px;
+                color: #666;
+                font-size: 16px;
+                line-height: 1.5;
+            ">Select a year to view your wrapped playlist visualization:</p>
+            
+            <form action="{{ url_for('main.select_year') }}" method="POST" style="
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            ">
+                <select name="year" style="
+                    width: 240px;
+                    padding: 12px 16px;
+                    border: 2px solid #c9b687;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    background-color: white;
+                    color: #633514;
+                    cursor: pointer;
+                    outline: none;
+                    transition: border-color 0.2s;
+                " onchange="this.form.submit()">
+                    <option value="">Select a year...</option>
+                    {% for year in available_years %}
+                        <option value="{{ year }}">Wrapped {{ year }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        {% else %}
+            <div style="
+                padding: 20px;
+                background-color: rgba(99, 53, 20, 0.1);
+                border-radius: 8px;
+                margin: 30px 0;
+            ">
+                <p style="
+                    color: #633514;
+                    margin: 0;
+                    font-size: 16px;
+                ">No wrapped playlists found in your Spotify account. Make sure your playlists follow the naming format: "username in YYYY"</p>
+            </div>
+            
+            <a href="{{ url_for('main.index') }}" style="
+                display: inline-block;
+                padding: 12px 24px;
+                background-color: #633514;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: background-color 0.2s;
+            ">Back to Home</a>
+        {% endif %}
+    </div>
+
+    <script>
+        // Auto-submit form when year is selected
+        document.querySelector('select[name="year"]').addEventListener('change', function() {
+            this.form.submit();
+        });
+    </script>
+</body>
+</html>

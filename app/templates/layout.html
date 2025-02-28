@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MetaWrapped - {% block title %}{% endblock %}</title>
+    <style>
+        .nav-links {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #191414;  /* Spotify black */
+        }
+        .nav-links a {
+            margin-right: 20px;
+            text-decoration: none;
+            padding: 10px 15px;
+            background-color: #1DB954;  /* Spotify green */
+            color: white;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .nav-links a:hover {
+            background-color: #1ed760;  /* Lighter green */
+        }
+        .main-content {
+            margin: 20px;
+        }
+        .logout-btn {
+            float: right;
+            background-color: #bc3939 !important;  /* Red for logout */
+        }
+        .logout-btn:hover {
+            background-color: #d44444 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="{{ url_for('main.home') }}">Home</a>
+        <a href="{{ url_for('main.playlists') }}">Compare Two Playlists</a>
+        <a href="{{ url_for('main.visualize') }}">Visualize All Playlists</a>
+        {% if 'token_info' in session %}
+            <a href="{{ url_for('main.logout') }}" class="logout-btn">Logout</a>
+        {% endif %}
+    </div>
+    
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

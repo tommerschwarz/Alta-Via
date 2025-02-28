@@ -4,6 +4,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from requests.exceptions import HTTPError
 from statistics import mean, stdev
 from collections import defaultdict
+from flask import session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ def get_spotify_oauth(app):
         client_id=app.config['SPOTIFY_CLIENT_ID'],
         client_secret=app.config['SPOTIFY_CLIENT_SECRET'],
         redirect_uri=app.config['SPOTIFY_REDIRECT_URI'],
-        scope = "playlist-read-private playlist-read-collaborative user-library-read user-read-private playlist-modify-public playlist-modify-private user-read-currently-playing user-top-read user-follow-read user-follow-modify user-read-playback-state", # scope
+        scope = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state", # scope
         cache_handler=None,
         show_dialog=False
     )
@@ -66,6 +67,11 @@ def compare_playlists(sp, playlist1_id, playlist2_id):
 
 
 def get_playlist_metrics(sp, playlist_name):
+    # Get current user's info
+    user_info = sp.current_user()
+    user_id = user_info['id']
+    selected_year = session.get('selected_year', '2024')  # Default to 2024 if not set
+    playlist_name = f"{user_id} in {selected_year}"
     try:
         # Find the playlist
         results = sp.current_user_playlists()
@@ -88,76 +94,59 @@ def get_playlist_metrics(sp, playlist_name):
         release_years = []
         artists = set()
         artist_genres = defaultdict(set)
-
-        # In get_playlist_metrics or get_playlist_metrics_by_id:
-        track_data = []
-        for item in tracks['items']:
-            if item['track'] is None:
-                continue
-                
-            track_data.append({
-                'id': item['track']['id'],
-                'name': item['track']['name'],
-                'artists': [artist['name'] for artist in item['track']['artists']]
-            })
+        track_data = []  # Move this up with other initializations
         
-        # Process tracks
-        for item in tracks['items']:
-            if item['track'] is None:
-                continue
-                
-            try:
-                # Track popularity
-                popularity = item['track']['popularity']
-                popularities.append(popularity)
-                
-                # Release year
-                year = int(item['track']['album']['release_date'][:4])
-                release_years.append(year)
-                
-                # Artists
-                for artist in item['track']['artists']:
-                    artists.add(artist['name'])  # Store name directly
-                    
-            except Exception as e:
-                logger.error(f"Error processing track in {playlist_name}: {str(e)}")
-                continue
-        
-        # Create metrics
-        if not popularities or not release_years:
-            logger.warning(f"No valid tracks found in playlist: {playlist_name}")
-            return None
-            
-        tracks = []
         for item in tracks['items']:
             if item['track'] is None:
                 continue
                 
             track = item['track']
-            tracks.append({
+            
+            # Get album image - print for debugging
+            album_images = track['album']['images']
+            
+            # Get the medium or first available image
+            album_image = None
+            if album_images:
+                # Try to get medium size image (usually second in list)
+                if len(album_images) > 1:
+                    album_image = album_images[1]['url']
+                else:
+                    album_image = album_images[0]['url']
+            
+            # Add to track_data
+            track_data.append({
                 'id': track['id'],
                 'name': track['name'],
-                'artists': [artist['name'] for artist in track['artists']]
+                'artists': [artist['name'] for artist in track['artists']],
+                'album_image': album_image
             })
-
-            metrics = {
-                'name': playlist_name,
-                'avgPopularity': mean(popularities) if popularities else 0,
-                'genreCount': len(all_genres),
-                'avgYear': mean(release_years) if release_years else 0,
-                'trackCount': len(popularities),
-                'artistCount': len(artists),
-                'tracks': tracks,  # Use consistent name 'tracks'
-                'popularityScores': popularities,
-                'years': release_years,
-            }
             
-            return metrics
+            # Add to metrics lists
+            popularities.append(track['popularity'])
+            release_years.append(int(track['album']['release_date'][:4]))
+            for artist in track['artists']:
+                artists.add(artist['name'])
+
+        metrics = {
+            'name': playlist_name,
+            'playlist_name': playlist_name,
+            'avgPopularity': mean(popularities) if popularities else 0,
+            'genreCount': len(artist_genres),
+            'avgYear': mean(release_years) if release_years else 0,
+            'trackCount': len(popularities),
+            'artistCount': len(artists),
+            'tracks': track_data,  # Include the track_data here instead of raw tracks
+            'popularityScores': popularities,
+            'years': release_years,
+        }
+        
+        return metrics
         
     except Exception as e:
         logger.error(f"Error getting metrics for {playlist_name}: {str(e)}")
         return None
-
+    
 def get_playlist_comparison(sp, playlist1_id, playlist2_id):
     """Get detailed comparison data for two playlists"""
     p1_tracks = sp.playlist_tracks(playlist1_id)
@@ -208,11 +197,13 @@ def get_playlist_metrics_by_id(sp, playlist_id, playlist_name):
         logger.info(f"Fetching tracks for playlist ID: {playlist_id}")
         tracks_response = sp.playlist_tracks(playlist_id)
         
-        # Initialize lists
+        # Initialize lists and dictionaries
         popularities = []
         release_years = []
         artists = set()
-        tracks = []  # Track data for Venn diagram
+        tracks = []
+        artist_genres = defaultdict(int)
+        all_artists_genres = []
         
         # Process tracks
         for item in tracks_response['items']:
@@ -221,32 +212,67 @@ def get_playlist_metrics_by_id(sp, playlist_id, playlist_name):
                 
             track = item['track']
             
-            # Basic track info for Venn diagram
+            # Get album image
+            album_images = track['album']['images']
+            album_image = None
+            if album_images:
+                album_image = album_images[1]['url'] if len(album_images) > 1 else album_images[0]['url']
+            
+            # Basic track info
+            track_artists = track['artists']
             tracks.append({
                 'id': track['id'],
                 'name': track['name'],
-                'artists': [artist['name'] for artist in track['artists']]
+                'artists': [artist['name'] for artist in track_artists],
+                'album_image': album_image
             })
             
             # Metrics data
             popularities.append(track['popularity'])
             release_years.append(int(track['album']['release_date'][:4]))
-            for artist in track['artists']:
-                artists.add(artist['name'])
+            
+            # Genre extraction
+            for artist in track_artists:
+                try:
+                    # Fetch full artist details to get genres
+                    artist_details = sp.artist(artist['id'])
+                    artist_genres_list = artist_details.get('genres', [])
+                    
+                    print(f"Artist {artist['name']} genres: {artist_genres_list}")
+                    all_artists_genres.extend(artist_genres_list)
+                    
+                    for genre in artist_genres_list:
+                        normalized_genre = genre.lower().strip()
+                        artist_genres[normalized_genre] += 1
+                    
+                    artists.add(artist['name'])
+                
+                except Exception as e:
+                    logger.error(f"Error fetching genres for artist {artist['name']}: {str(e)}")
         
+        # Ensure we have genre data
+        if not artist_genres:
+            artist_genres['unknown'] = len(tracks)
+        
+        # Print all genres for debugging
+        print("All artist genres:", all_artists_genres)
+        print("Processed genres:", dict(artist_genres))
+        
+        # Prepare metrics
         metrics = {
             'name': playlist_name,
-            'avgPopularity': mean(popularities),
-            'genreCount': len(artists),  # using artist count as proxy for now
-            'avgYear': mean(release_years),
+            'playlist_name': playlist_name,
+            'avgPopularity': mean(popularities) if popularities else 0,
+            'genreCount': len(artist_genres),
+            'avgYear': mean(release_years) if release_years else 0,
             'trackCount': len(popularities),
             'artistCount': len(artists),
-            'tracks': tracks,  # Important: consistently named tracks array
+            'tracks': tracks,
             'popularityScores': popularities,
             'years': release_years,
+            'genres': dict(artist_genres),
         }
         
-        logger.info(f"Successfully created metrics for {playlist_name} with {len(tracks)} tracks")
         return metrics
         
     except Exception as e:
