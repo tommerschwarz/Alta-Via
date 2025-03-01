@@ -98,7 +98,6 @@ window.PlaylistDashboard = () => {
                         lineHeight: '1.6'
                     }
                 }, [
-                    React.createElement('li', null, 'Make a copy of your Spotify Wrapped playlists and name them "<username> in <year>". My latest playlist would be "tommertime in 2024".'),
                     React.createElement('li', null, 'Login with your Spotify account'),
                     React.createElement('li', null, 'Select the Wrapped playlists you want to compare'),
                     React.createElement('li', null, 'Explore visualizations of your music tastes compared to others')

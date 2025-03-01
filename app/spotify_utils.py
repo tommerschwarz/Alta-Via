@@ -191,7 +191,7 @@ def get_playlist_comparison(sp, playlist1_id, playlist2_id):
         'common_tracks': common_tracks
     }
 
-def get_playlist_metrics_by_id(sp, playlist_id, playlist_name):
+def get_playlist_metrics_by_id(sp, playlist_id, display_name=None, original_name=None):
     try:
         # Get tracks directly using ID
         logger.info(f"Fetching tracks for playlist ID: {playlist_id}")
@@ -238,7 +238,6 @@ def get_playlist_metrics_by_id(sp, playlist_id, playlist_name):
                     artist_details = sp.artist(artist['id'])
                     artist_genres_list = artist_details.get('genres', [])
                     
-                    print(f"Artist {artist['name']} genres: {artist_genres_list}")
                     all_artists_genres.extend(artist_genres_list)
                     
                     for genre in artist_genres_list:
@@ -254,19 +253,16 @@ def get_playlist_metrics_by_id(sp, playlist_id, playlist_name):
         if not artist_genres:
             artist_genres['unknown'] = len(tracks)
         
-        # Print all genres for debugging
-        print("All artist genres:", all_artists_genres)
-        print("Processed genres:", dict(artist_genres))
-        
-        # Prepare metrics
+        # Prepare metrics - use display name for visualization
         metrics = {
-            'name': playlist_name,
-            'playlist_name': playlist_name,
+            'name': display_name or original_name,  # For display in UI
+            'playlist_name': original_name,         # Original playlist name
             'avgPopularity': mean(popularities) if popularities else 0,
             'genreCount': len(artist_genres),
             'avgYear': mean(release_years) if release_years else 0,
             'trackCount': len(popularities),
             'artistCount': len(artists),
+            'playlist_id': playlist_id,
             'tracks': tracks,
             'popularityScores': popularities,
             'years': release_years,
@@ -276,5 +272,5 @@ def get_playlist_metrics_by_id(sp, playlist_id, playlist_name):
         return metrics
         
     except Exception as e:
-        logger.error(f"Error getting metrics for {playlist_name}: {str(e)}")
+        logger.error(f"Error getting metrics for {original_name}: {str(e)}")
         return None

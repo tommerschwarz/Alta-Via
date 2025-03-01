@@ -63,14 +63,28 @@ def callback():
         # Check for available wrapped playlists
         available_years = []
         playlists = sp.current_user_playlists(limit=50)
+        
+        # Look for both custom playlists and "Your Top Songs YYYY" playlists
         wrapped_pattern = f"{user_id} in "
         
         for playlist in playlists['items']:
+            # Check for custom named playlists first
             if wrapped_pattern in playlist['name']:
-                # Extract year from playlist name
                 try:
                     year = playlist['name'].replace(wrapped_pattern, '')
                     if year.isdigit() and len(year) == 4:  # Ensure it's a valid year
+                        available_years.append(year)
+                except Exception as e:
+                    logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
+            
+            # Also check for Spotify's original Wrapped playlists
+            elif "Your Top Songs" in playlist['name']:
+                try:
+                    year_match = re.search(r'Your Top Songs (\d{4})', playlist['name'])
+                    if year_match:
+                        year = year_match.group(1)
+                        # Store the year and the original playlist name
+                        session[f'wrapped_playlist_{year}'] = playlist['name']
                         available_years.append(year)
                 except Exception as e:
                     logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
@@ -87,13 +101,7 @@ def callback():
         
     except Exception as e:
         logger.error(f"Error in callback: {str(e)}")
-        return redirect(url_for('main.index'))@routes.route('/callback')
-def callback():
-    sp_oauth = spotify_utils.get_spotify_oauth(current_app)
-    code = request.args.get('code')
-    token_info = sp_oauth.get_access_token(code)
-    session['token_info'] = token_info
-    return redirect(url_for('main.index'))  # Redirect to index instead of playlists
+        return redirect(url_for('main.index'))
 
 @routes.route('/select-year', methods=['POST'])
 def select_year():
@@ -119,7 +127,11 @@ def get_playlist_metrics():
         user_info = sp.current_user()
         user_id = user_info['id']
         selected_year = session.get('selected_year', '2024')
-        playlist_name = f"{user_id} in {selected_year}"
+        
+        # Look for both custom named playlists and official Wrapped playlists
+        # Define possible playlist names
+        custom_playlist_name = f"{user_id} in {selected_year}"
+        official_playlist_name = f"Your Top Songs {selected_year}"
         
         all_stored_playlists = []
         all_stored_playlist_ids = set()
@@ -209,43 +221,64 @@ def get_playlist_metrics():
         # Add current user's playlist if not already in sheet
         try:
             current_user_playlists = sp.current_user_playlists(limit=50)
+            found_playlist = None
+            used_playlist_name = None
             
+            # First try to find custom-named playlist
             for playlist in current_user_playlists['items']:
-                if playlist['name'] == playlist_name and playlist['id'] not in all_stored_playlist_ids:
-                    logger.info(f"Found new playlist to add: {playlist_name}")
+                if playlist['name'] == custom_playlist_name and playlist['id'] not in all_stored_playlist_ids:
+                    found_playlist = playlist
+                    used_playlist_name = custom_playlist_name
+                    logger.info(f"Found custom-named playlist: {custom_playlist_name}")
+                    break
+            
+            # If custom-named playlist not found, try to find official Wrapped playlist
+            if not found_playlist:
+                for playlist in current_user_playlists['items']:
+                    if playlist['name'] == official_playlist_name and playlist['id'] not in all_stored_playlist_ids:
+                        found_playlist = playlist
+                        used_playlist_name = official_playlist_name
+                        logger.info(f"Found official Wrapped playlist: {official_playlist_name}")
+                        break
+            
+            # Process the found playlist
+            if found_playlist and used_playlist_name:
+                logger.info(f"Processing playlist: {used_playlist_name}")
+                
+                # Get playlist metrics
+                # Use display name for visualization but maintain original playlist name
+                display_name = f"{user_info['display_name']} in {selected_year}"
+                metrics = spotify_utils.get_playlist_metrics_by_id(sp, found_playlist['id'], display_name, used_playlist_name)
+
+                if metrics:
+                    # Get track IDs
+                    track_ids = [track['id'] for track in metrics['tracks']]
+                    track_ids_string = ','.join(track_ids)
+
+                    # Submit to Google Form
+                    form_data = {
+                        'entry.1548427': user_info['display_name'],
+                        'entry.1915400927': used_playlist_name,
+                        'entry.1933974811': str(metrics['avgPopularity']),
+                        'entry.1375160318': str(metrics['genreCount']),
+                        'entry.871544984': str(metrics['avgYear']),
+                        'entry.235692165': str(metrics['trackCount']),
+                        'entry.1816026476': str(metrics['artistCount']),
+                        'entry.2120636163': found_playlist['id'],
+                        'entry.595204572': track_ids_string,
+                        'entry.1882653839': json.dumps(str(metrics['genres']))
+                    }
                     
-                    # Get playlist metrics
-                    metrics = spotify_utils.get_playlist_metrics_by_id(sp, playlist['id'], playlist_name)                
-
-                    if metrics:
-                        # Get track IDs
-                        track_ids = [track['id'] for track in metrics['tracks']]
-                        track_ids_string = ','.join(track_ids)
-
-                        # Submit to Google Form
-                        form_data = {
-                            'entry.1548427': user_info['display_name'],  # Replace with actual form field IDs
-                            'entry.1915400927': playlist_name,
-                            'entry.1933974811': str(metrics['avgPopularity']),
-                            'entry.1375160318': str(metrics['genreCount']),
-                            'entry.871544984': str(metrics['avgYear']),
-                            'entry.235692165': str(metrics['trackCount']),
-                            'entry.1816026476': str(metrics['artistCount']),
-                            'entry.2120636163': playlist['id'],
-                            'entry.595204572': track_ids_string,  # Add the track IDs field
-                            'entry.1882653839': json.dumps(str(metrics['genres']))
-                        }
-                        
-                        # Send to Google Form
-                        form_response = requests.post(GOOGLE_FORM_URL, data=form_data)
-                        logger.info(f"Form submission response: {form_response.status_code}")
-                        
-                        if form_response.status_code == 200:
-                            logger.info(f"Successfully submitted playlist {playlist_name} to form")
-                            all_stored_playlists.append(metrics)
-                        else:
-                            logger.error(f"Failed to submit to form: {form_response.status_code}")
-                            logger.error(f"Form response: {form_response.text}")
+                    # Send to Google Form
+                    form_response = requests.post(GOOGLE_FORM_URL, data=form_data)
+                    logger.info(f"Form submission response: {form_response.status_code}")
+                    
+                    if form_response.status_code == 200:
+                        logger.info(f"Successfully submitted playlist {used_playlist_name} to form")
+                        all_stored_playlists.append(metrics)
+                    else:
+                        logger.error(f"Failed to submit to form: {form_response.status_code}")
+                        logger.error(f"Form response: {form_response.text}")
                 
         except Exception as e:
             logger.error(f"Error processing user playlist: {str(e)}")
