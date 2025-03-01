@@ -15,7 +15,7 @@ else:
 # Force the correct redirect URI in production
 if os.environ.get('RENDER') or os.environ.get('IS_PRODUCTION'):
     print("Setting production redirect URI")
-    os.environ['SPOTIFY_REDIRECT_URI'] = 'https://altavia.onrender.com/callback'
+    os.environ['SPOTIFY_REDIRECT_URI'] = 'https://altavia.onrender.com'
 
 print("SPOTIFY_REDIRECT_URI:", os.environ.get('SPOTIFY_REDIRECT_URI'))
 
