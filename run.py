@@ -4,14 +4,20 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Load environment variables
-load_dotenv()
+# Only load from .env file if it exists (development environment)
+env_path = Path('.env')
+if env_path.exists():
+    print("Loading environment from .env file")
+    load_dotenv()
+else:
+    print("No .env file found, using environment variables")
 
-print("Current working directory:", os.getcwd())
-print(".env file exists:", Path('.env').exists())
+# Force the correct redirect URI in production
+if os.environ.get('RENDER') or os.environ.get('IS_PRODUCTION'):
+    print("Setting production redirect URI")
+    os.environ['SPOTIFY_REDIRECT_URI'] = 'https://altavia.onrender.com/callback'
 
-from dotenv import load_dotenv
-load_dotenv(verbose=True) 
+print("SPOTIFY_REDIRECT_URI:", os.environ.get('SPOTIFY_REDIRECT_URI'))
 
 app = create_app()
 
