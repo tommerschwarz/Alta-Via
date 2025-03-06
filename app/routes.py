@@ -13,6 +13,7 @@ from spotipy.oauth2 import SpotifyOAuth
 import ast
 import csv
 from io import StringIO
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -122,7 +123,6 @@ def callback():
                 except Exception as e:
                     logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
             
-            # NEW: Check for any playlist with a year in the name
             else:
                 try:
                     # Find any 4-digit number that could be a year (2000-2030)
