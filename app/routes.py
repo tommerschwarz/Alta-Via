@@ -43,6 +43,11 @@ def login():
 @routes.route('/callback')
 def callback():
     """Handle the Spotify OAuth callback"""
+
+    for key in list(session.keys()):
+        if key != 'csrf_token':  # Preserve CSRF token if using Flask-WTF
+            session.pop(key)
+
     try:
         sp_oauth = spotify_utils.get_spotify_oauth(current_app)
         code = request.args.get('code')
@@ -63,6 +68,12 @@ def callback():
         # Check for available wrapped playlists
         available_years = []
         playlists = sp.current_user_playlists(limit=50)
+
+        user_info = sp.current_user()
+        logger.info(f"Authenticated user: {user_info['display_name']} ({user_info['id']})")
+        session['user_id'] = user_info['id']
+        session['display_name'] = user_info['display_name']
+    
         
         # Look for both custom playlists and "Your Top Songs YYYY" playlists
         wrapped_pattern = f"{user_id} in "
@@ -369,3 +380,8 @@ def submit_playlist():
 @routes.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
+
+@routes.route('/logout')
+def logout():
+    session.clear()  # Clear all session data
+    return redirect(url_for('main.index'))

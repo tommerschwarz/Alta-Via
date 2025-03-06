@@ -12,8 +12,8 @@ def create_app():
                 template_folder=template_dir,
                 static_folder='static')   
     
-    # Set a secret key
-    app.secret_key = 'dev'  # Change this to a secure secret key in production
+    # Set a secret key from environment variable or use a secure default
+    app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
     
     # Enable CORS with more permissive settings for development
     CORS(app, supports_credentials=True)
