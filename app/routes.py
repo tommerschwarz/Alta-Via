@@ -172,7 +172,6 @@ def select_year():
         session['selected_year'] = year
     return redirect(url_for('main.index'))
 
-# In routes.py
 @routes.route('/api/playlist-metrics')
 def get_playlist_metrics():
     logger.info("Starting playlist metrics request")
@@ -190,10 +189,14 @@ def get_playlist_metrics():
         user_id = user_info['id']
         selected_year = session.get('selected_year', '2024')
         
-        # Get the wrapped playlist map from session
-        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+        # Define these variables at the function level so they're always available
+        custom_playlist_name = f"{user_id} in {selected_year}"
+        official_playlist_name = f"Your Top Songs {selected_year}"
         found_playlist = None
         used_playlist_name = None
+        
+        # Get the wrapped playlist map from session
+        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
         
         # Try to find the playlist for the selected year in our map
         if selected_year in wrapped_playlist_map:
@@ -210,10 +213,6 @@ def get_playlist_metrics():
         
         # If not found in the map, fallback to the original search logic
         if not found_playlist:
-            # Define possible playlist names
-            custom_playlist_name = f"{user_id} in {selected_year}"
-            official_playlist_name = f"Your Top Songs {selected_year}"
-            
             current_user_playlists = sp.current_user_playlists(limit=50)
             
             # First try to find custom-named playlist
@@ -341,14 +340,16 @@ def get_playlist_metrics():
                         logger.info(f"Found official Wrapped playlist: {official_playlist_name}")
                         break
             
-            # Process the found playlist
+
+            # Process the found playlist - make sure to include the current user's display name
             if found_playlist and used_playlist_name and found_playlist['id'] not in all_stored_playlist_ids:
                 logger.info(f"Processing playlist: {used_playlist_name}")
                 
-                # Use display name for visualization but maintain original playlist name
+                # IMPORTANT: Always use the current user's display name, not hardcoded one
                 display_name = f"{user_info['display_name']} in {selected_year}"
+                logger.info(f"Setting display name to: {display_name}")
+                
                 metrics = spotify_utils.get_playlist_metrics_by_id(sp, found_playlist['id'], display_name, used_playlist_name)
-
                 if metrics:
                     # Get track IDs
                     track_ids = [track['id'] for track in metrics['tracks']]
