@@ -73,6 +73,22 @@ def callback():
         logger.info(f"Authenticated user: {user_info['display_name']} ({user_info['id']})")
         session['user_id'] = user_info['id']
         session['display_name'] = user_info['display_name']
+
+        # Get user info and store in session
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+        user_info = sp.current_user()
+        user_id = user_info['id']
+        logger.info(f"Authenticated user: {user_info['display_name']} ({user_id})")
+        session['user_id'] = user_info['id']
+        
+        # Check for available wrapped playlists
+        available_years = []
+        playlists = sp.current_user_playlists(limit=50)
+        
+        # Log all playlists for debugging
+        logger.info(f"User has {len(playlists['items'])} playlists:")
+        for playlist in playlists['items']:
+            logger.info(f"Playlist: {playlist['name']} (ID: {playlist['id']})")
     
         
         # Look for both custom playlists and "Your Top Songs YYYY" playlists
