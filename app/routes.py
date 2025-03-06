@@ -81,40 +81,75 @@ def callback():
         logger.info(f"Authenticated user: {user_info['display_name']} ({user_id})")
         session['user_id'] = user_info['id']
         
-        # Check for available wrapped playlists
+        # Enhanced playlist detection
         available_years = []
         playlists = sp.current_user_playlists(limit=50)
         
         # Log all playlists for debugging
         logger.info(f"User has {len(playlists['items'])} playlists:")
+        wrapped_playlist_map = {}  # Map years to playlist objects
+        
         for playlist in playlists['items']:
             logger.info(f"Playlist: {playlist['name']} (ID: {playlist['id']})")
-    
-        
-        # Look for both custom playlists and "Your Top Songs YYYY" playlists
-        wrapped_pattern = f"{user_id} in "
-        
-        for playlist in playlists['items']:
-            # Check for custom named playlists first
+            
+            # Check for custom named playlists first (unchanged)
+            wrapped_pattern = f"{user_id} in "
             if wrapped_pattern in playlist['name']:
                 try:
                     year = playlist['name'].replace(wrapped_pattern, '')
                     if year.isdigit() and len(year) == 4:  # Ensure it's a valid year
                         available_years.append(year)
+                        wrapped_playlist_map[year] = {
+                            'id': playlist['id'], 
+                            'name': playlist['name'],
+                            'type': 'custom'
+                        }
                 except Exception as e:
                     logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
             
-            # Also check for Spotify's original Wrapped playlists
+            # Check for official Spotify Wrapped playlists
             elif "Your Top Songs" in playlist['name']:
                 try:
                     year_match = re.search(r'Your Top Songs (\d{4})', playlist['name'])
                     if year_match:
                         year = year_match.group(1)
-                        # Store the year and the original playlist name
-                        session[f'wrapped_playlist_{year}'] = playlist['name']
                         available_years.append(year)
+                        wrapped_playlist_map[year] = {
+                            'id': playlist['id'], 
+                            'name': playlist['name'],
+                            'type': 'official'
+                        }
                 except Exception as e:
                     logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
+            
+            # NEW: Check for any playlist with a year in the name
+            else:
+                try:
+                    # Find any 4-digit number that could be a year (2000-2030)
+                    year_match = re.search(r'(20[0-2][0-9])', playlist['name'])
+                    if year_match:
+                        potential_year = year_match.group(1)
+                        
+                        # Check if it has exactly 100 tracks (typical for Wrapped playlists)
+                        playlist_tracks = sp.playlist_tracks(playlist['id'], fields='total')
+                        track_count = playlist_tracks['total']
+                        
+                        logger.info(f"Potential wrapped playlist: {playlist['name']} - Year: {potential_year}, Tracks: {track_count}")
+                        
+                        if track_count == 100:
+                            # Only add if we don't already have this year from a more reliable source
+                            if potential_year not in wrapped_playlist_map:
+                                available_years.append(potential_year)
+                                wrapped_playlist_map[potential_year] = {
+                                    'id': playlist['id'], 
+                                    'name': playlist['name'],
+                                    'type': 'detected'
+                                }
+                except Exception as e:
+                    logger.error(f"Error checking playlist {playlist['name']} as potential wrapped: {str(e)}")
+        
+        # Store the playlist map in session for later use
+        session['wrapped_playlist_map'] = wrapped_playlist_map
         
         logger.info(f"Found wrapped playlists for years: {available_years}")
         
@@ -155,10 +190,48 @@ def get_playlist_metrics():
         user_id = user_info['id']
         selected_year = session.get('selected_year', '2024')
         
-        # Look for both custom named playlists and official Wrapped playlists
-        # Define possible playlist names
-        custom_playlist_name = f"{user_id} in {selected_year}"
-        official_playlist_name = f"Your Top Songs {selected_year}"
+        # Get the wrapped playlist map from session
+        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+        found_playlist = None
+        used_playlist_name = None
+        
+        # Try to find the playlist for the selected year in our map
+        if selected_year in wrapped_playlist_map:
+            playlist_info = wrapped_playlist_map[selected_year]
+            # Look up the playlist in the user's library to get current data
+            current_user_playlists = sp.current_user_playlists(limit=50)
+            
+            for playlist in current_user_playlists['items']:
+                if playlist['id'] == playlist_info['id']:
+                    found_playlist = playlist
+                    used_playlist_name = playlist_info['name']
+                    logger.info(f"Found {playlist_info['type']} playlist for year {selected_year}: {used_playlist_name}")
+                    break
+        
+        # If not found in the map, fallback to the original search logic
+        if not found_playlist:
+            # Define possible playlist names
+            custom_playlist_name = f"{user_id} in {selected_year}"
+            official_playlist_name = f"Your Top Songs {selected_year}"
+            
+            current_user_playlists = sp.current_user_playlists(limit=50)
+            
+            # First try to find custom-named playlist
+            for playlist in current_user_playlists['items']:
+                if playlist['name'] == custom_playlist_name:
+                    found_playlist = playlist
+                    used_playlist_name = custom_playlist_name
+                    logger.info(f"Found custom-named playlist: {custom_playlist_name}")
+                    break
+            
+            # If custom-named playlist not found, try to find official Wrapped playlist
+            if not found_playlist:
+                for playlist in current_user_playlists['items']:
+                    if playlist['name'] == official_playlist_name:
+                        found_playlist = playlist
+                        used_playlist_name = official_playlist_name
+                        logger.info(f"Found official Wrapped playlist: {official_playlist_name}")
+                        break
         
         all_stored_playlists = []
         all_stored_playlist_ids = set()
@@ -269,10 +342,9 @@ def get_playlist_metrics():
                         break
             
             # Process the found playlist
-            if found_playlist and used_playlist_name:
+            if found_playlist and used_playlist_name and found_playlist['id'] not in all_stored_playlist_ids:
                 logger.info(f"Processing playlist: {used_playlist_name}")
                 
-                # Get playlist metrics
                 # Use display name for visualization but maintain original playlist name
                 display_name = f"{user_info['display_name']} in {selected_year}"
                 metrics = spotify_utils.get_playlist_metrics_by_id(sp, found_playlist['id'], display_name, used_playlist_name)

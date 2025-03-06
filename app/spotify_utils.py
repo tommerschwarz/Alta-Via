@@ -255,8 +255,8 @@ def get_playlist_metrics_by_id(sp, playlist_id, display_name=None, original_name
         
         # Prepare metrics - use display name for visualization
         metrics = {
-            'name': display_name or original_name,  # For display in UI
-            'playlist_name': original_name,         # Original playlist name
+            'name': display_name or original_name,  # This will be used in the UI
+            'playlist_name': original_name,        # Original playlist name
             'avgPopularity': mean(popularities) if popularities else 0,
             'genreCount': len(artist_genres),
             'avgYear': mean(release_years) if release_years else 0,
