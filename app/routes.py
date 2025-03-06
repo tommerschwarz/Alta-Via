@@ -187,50 +187,10 @@ def get_playlist_metrics():
         # Get current user's info
         user_info = sp.current_user()
         user_id = user_info['id']
+        display_username = user_info['display_name']
         selected_year = session.get('selected_year', '2024')
         
-        # Define these variables at the function level so they're always available
-        custom_playlist_name = f"{user_id} in {selected_year}"
-        official_playlist_name = f"Your Top Songs {selected_year}"
-        found_playlist = None
-        used_playlist_name = None
-        
-        # Get the wrapped playlist map from session
-        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
-        
-        # Try to find the playlist for the selected year in our map
-        if selected_year in wrapped_playlist_map:
-            playlist_info = wrapped_playlist_map[selected_year]
-            # Look up the playlist in the user's library to get current data
-            current_user_playlists = sp.current_user_playlists(limit=50)
-            
-            for playlist in current_user_playlists['items']:
-                if playlist['id'] == playlist_info['id']:
-                    found_playlist = playlist
-                    used_playlist_name = playlist_info['name']
-                    logger.info(f"Found {playlist_info['type']} playlist for year {selected_year}: {used_playlist_name}")
-                    break
-        
-        # If not found in the map, fallback to the original search logic
-        if not found_playlist:
-            current_user_playlists = sp.current_user_playlists(limit=50)
-            
-            # First try to find custom-named playlist
-            for playlist in current_user_playlists['items']:
-                if playlist['name'] == custom_playlist_name:
-                    found_playlist = playlist
-                    used_playlist_name = custom_playlist_name
-                    logger.info(f"Found custom-named playlist: {custom_playlist_name}")
-                    break
-            
-            # If custom-named playlist not found, try to find official Wrapped playlist
-            if not found_playlist:
-                for playlist in current_user_playlists['items']:
-                    if playlist['name'] == official_playlist_name:
-                        found_playlist = playlist
-                        used_playlist_name = official_playlist_name
-                        logger.info(f"Found official Wrapped playlist: {official_playlist_name}")
-                        break
+        logger.info(f"Current user: {display_username} ({user_id}), selected year: {selected_year}")
         
         all_stored_playlists = []
         all_stored_playlist_ids = set()
@@ -242,7 +202,6 @@ def get_playlist_metrics():
             
             if response.status_code == 200:
                 content = response.text
-                # Use CSV reader with proper quote handling
                 csv_reader = csv.reader(StringIO(content), quotechar='"', delimiter=',')
                 next(csv_reader)  # Skip header row
                 
@@ -291,22 +250,25 @@ def get_playlist_metrics():
                             if len(values) > 10:
                                 try:
                                     genre_str = values[10].strip()
-                                    # Clean up the genre string
                                     genre_str = genre_str.replace("'", '"').replace('""', '"')
                                     if genre_str.startswith('"') and genre_str.endswith('"'):
                                         genre_str = genre_str[1:-1]
-                                    logger.info(f"Cleaned genre string: {genre_str}")
                                     genres = json.loads(genre_str)
                                     if ('unknown' in genres.keys()):
                                         del genres['unknown']
                                     playlist_data['genres'] = genres
-                                    logger.info(f"Successfully parsed genres for playlist {playlist_id}")
                                 except json.JSONDecodeError as e:
-                                    logger.error(f"JSON parsing error for genre string: {genre_str}")
-                                    logger.error(f"Error details: {str(e)}")
                                     playlist_data['genres'] = {'unknown': 1}
                             else:
                                 playlist_data['genres'] = {'unknown': 1}
+
+                            # CRITICAL CHANGE: Update name for display to use current user's name
+                            # Check if this is a wrapped playlist for the selected year
+                            playlist_name = playlist_data['playlist_name']
+                            if selected_year in playlist_name:
+                                # Format should be "<username> in <year>"
+                                playlist_data['name'] = f"{display_username} in {selected_year}"
+                                logger.info(f"Updated existing playlist display name to: {playlist_data['name']}")
 
                             all_stored_playlists.append(playlist_data)
                         except Exception as e:
@@ -316,72 +278,75 @@ def get_playlist_metrics():
             logger.error(f"Error reading from Google Sheet: {str(e)}")
             return jsonify({'error': str(e)}), 500
     
+        # Look for the user's wrapped playlist for the selected year
+        # First check the wrapped playlist map
+        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+        found_playlist = None
+        used_playlist_name = None
+        
+        if selected_year in wrapped_playlist_map:
+            playlist_info = wrapped_playlist_map[selected_year]
+            logger.info(f"Found in wrapped_playlist_map for {selected_year}: {playlist_info}")
             
-        # Add current user's playlist if not already in sheet
-        try:
-            current_user_playlists = sp.current_user_playlists(limit=50)
-            found_playlist = None
-            used_playlist_name = None
-            
-            # First try to find custom-named playlist
-            for playlist in current_user_playlists['items']:
-                if playlist['name'] == custom_playlist_name and playlist['id'] not in all_stored_playlist_ids:
-                    found_playlist = playlist
-                    used_playlist_name = custom_playlist_name
-                    logger.info(f"Found custom-named playlist: {custom_playlist_name}")
-                    break
-            
-            # If custom-named playlist not found, try to find official Wrapped playlist
-            if not found_playlist:
-                for playlist in current_user_playlists['items']:
-                    if playlist['name'] == official_playlist_name and playlist['id'] not in all_stored_playlist_ids:
-                        found_playlist = playlist
-                        used_playlist_name = official_playlist_name
-                        logger.info(f"Found official Wrapped playlist: {official_playlist_name}")
-                        break
-            
-
-            # Process the found playlist - make sure to include the current user's display name
-            if found_playlist and used_playlist_name and found_playlist['id'] not in all_stored_playlist_ids:
-                logger.info(f"Processing playlist: {used_playlist_name}")
+            # Check if this playlist is already in the database
+            if playlist_info['id'] in all_stored_playlist_ids:
+                logger.info(f"Playlist {playlist_info['name']} (ID: {playlist_info['id']}) is already in database")
                 
-                # IMPORTANT: Always use the current user's display name, not hardcoded one
-                display_name = f"{user_info['display_name']} in {selected_year}"
-                logger.info(f"Setting display name to: {display_name}")
+                # Find it in our list and update the name to match current user
+                for playlist in all_stored_playlists:
+                    if playlist['playlist_id'] == playlist_info['id']:
+                        playlist['name'] = f"{display_username} in {selected_year}"
+                        logger.info(f"Updated display name in database to: {playlist['name']}")
+            else:
+                # Get the full playlist to process
+                logger.info(f"Playlist {playlist_info['name']} (ID: {playlist_info['id']}) not in database, fetching it")
                 
-                metrics = spotify_utils.get_playlist_metrics_by_id(sp, found_playlist['id'], display_name, used_playlist_name)
-                if metrics:
-                    # Get track IDs
-                    track_ids = [track['id'] for track in metrics['tracks']]
-                    track_ids_string = ','.join(track_ids)
-
-                    # Submit to Google Form
-                    form_data = {
-                        'entry.1548427': user_info['display_name'],
-                        'entry.1915400927': used_playlist_name,
-                        'entry.1933974811': str(metrics['avgPopularity']),
-                        'entry.1375160318': str(metrics['genreCount']),
-                        'entry.871544984': str(metrics['avgYear']),
-                        'entry.235692165': str(metrics['trackCount']),
-                        'entry.1816026476': str(metrics['artistCount']),
-                        'entry.2120636163': found_playlist['id'],
-                        'entry.595204572': track_ids_string,
-                        'entry.1882653839': json.dumps(str(metrics['genres']))
-                    }
+                # Look up the playlist 
+                try:
+                    full_playlist = sp.playlist(playlist_info['id'])
                     
-                    # Send to Google Form
-                    form_response = requests.post(GOOGLE_FORM_URL, data=form_data)
-                    logger.info(f"Form submission response: {form_response.status_code}")
+                    # Now process and add this playlist
+                    display_name = f"{display_username} in {selected_year}"
+                    metrics = spotify_utils.get_playlist_metrics_by_id(
+                        sp, 
+                        playlist_info['id'], 
+                        display_name=display_name, 
+                        original_name=playlist_info['name']
+                    )
                     
-                    if form_response.status_code == 200:
-                        logger.info(f"Successfully submitted playlist {used_playlist_name} to form")
+                    if metrics:
+                        logger.info(f"Successfully got metrics for {playlist_info['name']}")
+                        
+                        # Add to the list of playlists being returned to front-end
                         all_stored_playlists.append(metrics)
-                    else:
-                        logger.error(f"Failed to submit to form: {form_response.status_code}")
-                        logger.error(f"Form response: {form_response.text}")
-                
-        except Exception as e:
-            logger.error(f"Error processing user playlist: {str(e)}")
+                        
+                        # Submit to Google Form
+                        track_ids = [track['id'] for track in metrics['tracks']]
+                        track_ids_string = ','.join(track_ids)
+
+                        form_data = {
+                            'entry.1548427': display_username,
+                            'entry.1915400927': playlist_info['name'],
+                            'entry.1933974811': str(metrics['avgPopularity']),
+                            'entry.1375160318': str(metrics['genreCount']),
+                            'entry.871544984': str(metrics['avgYear']),
+                            'entry.235692165': str(metrics['trackCount']),
+                            'entry.1816026476': str(metrics['artistCount']),
+                            'entry.2120636163': playlist_info['id'],
+                            'entry.595204572': track_ids_string,
+                            'entry.1882653839': json.dumps(str(metrics['genres']))
+                        }
+                        
+                        # Send to Google Form
+                        form_response = requests.post(GOOGLE_FORM_URL, data=form_data)
+                        logger.info(f"Form submission response: {form_response.status_code}")
+                except Exception as e:
+                    logger.error(f"Error processing wrapped playlist: {str(e)}")
+        
+        # Log what we're returning
+        logger.info(f"Returning {len(all_stored_playlists)} playlists")
+        for i, p in enumerate(all_stored_playlists):
+            logger.info(f"Playlist {i+1}: {p.get('name')} (ID: {p.get('playlist_id')})")
             
         return jsonify(all_stored_playlists)
         

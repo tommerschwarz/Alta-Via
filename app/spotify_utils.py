@@ -268,7 +268,7 @@ def get_playlist_metrics_by_id(sp, playlist_id, display_name=None, original_name
             'years': release_years,
             'genres': dict(artist_genres),
         }
-        
+        logger.info(f"Created metrics with display name: {metrics['name']}")
         return metrics
         
     except Exception as e:
