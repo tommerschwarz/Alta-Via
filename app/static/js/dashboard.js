@@ -1523,7 +1523,51 @@ window.PlaylistDashboard = () => {
                     }
                 })
             ]),
-
+            React.createElement('div', {
+                style: {
+                    position: 'fixed',
+                    bottom: '20px',
+                    right: '20px',
+                    zIndex: 100
+                }
+            }, [
+                React.createElement('button', {
+                    onClick: () => {
+                        // Take user back to year selection
+                        window.location.href = '/logout';  // Using logout to clear session, then it redirects to index
+                    },
+                    style: {
+                        backgroundColor: '#FFFFFF',
+                        border: '2px solid #633514',
+                        padding: '8px 15px',
+                        boxShadow: '2px 2px 0px #633514',
+                        fontFamily: 'Arial',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        minWidth: '120px',
+                        textAlign: 'center',
+                        position: 'relative',
+                        top: '0',
+                        left: '0',
+                        transition: 'all 0.1s'
+                    },
+                    onMouseDown: (e) => {
+                        e.target.style.boxShadow = '1px 1px 0px #633514';
+                        e.target.style.top = '1px';
+                        e.target.style.left = '1px';
+                    },
+                    onMouseUp: (e) => {
+                        e.target.style.boxShadow = '2px 2px 0px #633514';
+                        e.target.style.top = '0';
+                        e.target.style.left = '0';
+                    },
+                    onMouseLeave: (e) => {
+                        e.target.style.boxShadow = '2px 2px 0px #633514';
+                        e.target.style.top = '0';
+                        e.target.style.left = '0';
+                    }
+                }, 'Back to Menu')
+            ]),
             // Track display panel
             React.createElement('div', {
                 style: {
