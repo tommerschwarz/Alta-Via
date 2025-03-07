@@ -33,7 +33,8 @@ routes = Blueprint('main', __name__)
 def index():
     """Serve the main page"""
     selected_year = session.get('selected_year')
-    return render_template('index.html', selected_year=selected_year)
+    username = session.get('display_name', '')
+    return render_template('index.html', selected_year=selected_year, username=username)
 
 @routes.route('/login')
 def login():

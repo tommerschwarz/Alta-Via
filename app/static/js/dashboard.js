@@ -1,6 +1,21 @@
 window.PlaylistDashboard = () => {  
     const [playlistData, setPlaylistData] = React.useState([]);
-    const [selectedPlaylists, setSelectedPlaylists] = React.useState([]);
+
+    const [selectedPlaylists, setSelectedPlaylists] = React.useState(() => {
+        // Find the user's own playlist first
+        if (playlistData && playlistData.length > 0 && window.selectedYear) {
+            const currentUsername = getCurrentUsername(); // Get from session or HTML attribute
+            const userPlaylist = playlistData.find(p => 
+                p.name && p.name.includes(currentUsername) && p.name.includes(window.selectedYear)
+            );
+            
+            if (userPlaylist) {
+                return [userPlaylist.name];
+            }
+        }
+        return []; // Empty array if no match found
+    });
+
     const plotRef = React.useRef(null);
     const yearHistRef = React.useRef(null);
     const popularityHistRef = React.useRef(null);
@@ -19,6 +34,17 @@ window.PlaylistDashboard = () => {
     const [isInfoModalOpen, setIsInfoModalOpen] = React.useState(false);
     const artistHistRef = React.useRef(null);
     const genreHistRef = React.useRef(null);
+
+    function getCurrentUsername() {
+        // Get the username from a data attribute in the HTML or from a global variable
+        // For example, if you've stored it in the HTML:
+        const usernameElement = document.getElementById('current-username');
+        if (usernameElement) {
+            return usernameElement.dataset.username;
+        }
+        // Or directly from window object if you've set it
+        return window.currentUsername || '';
+    }
 
 
 

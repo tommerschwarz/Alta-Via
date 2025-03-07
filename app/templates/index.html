@@ -29,6 +29,10 @@
 </head>
 <body>
     <div id="playlist-dashboard"></div>
+    <div id="current-username" data-username="{{ username }}"></div>
+    <script>
+        window.currentUsername = "{{ username }}";
+    </script>
 
     <!-- Load your component -->
     <script type="text/babel" src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
