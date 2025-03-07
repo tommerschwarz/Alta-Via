@@ -1568,14 +1568,7 @@ window.PlaylistDashboard = () => {
                     }
                 })
             ]),
-            React.createElement('div', {
-                style: {
-                    position: 'fixed',
-                    bottom: '20px',
-                    right: '20px',
-                    zIndex: 100
-                }
-            },
+
             // Track display panel
             React.createElement('div', {
                 style: {
