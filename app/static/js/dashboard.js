@@ -1430,44 +1430,7 @@ window.PlaylistDashboard = () => {
                 borderRadius: '8px',
                 position: 'relative'  // Add this
             }
-        }, [
-            React.createElement('button', {
-                onClick: () => {
-                    window.location.href = '/logout';
-                },
-                style: {
-                    backgroundColor: '#FFFFFF',
-                    border: '2px solid #633514',
-                    padding: '8px 15px',
-                    boxShadow: '2px 2px 0px #633514',
-                    fontFamily: "'Georgia', serif",
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    minWidth: '140px',
-                    textAlign: 'center',
-                    position: 'relative',
-                    top: '0',
-                    left: '0',
-                    transition: 'all 0.1s'
-                },
-                onMouseDown: (e) => {
-                    e.target.style.boxShadow = '1px 1px 0px #633514';
-                    e.target.style.top = '1px';
-                    e.target.style.left = '1px';
-                },
-                onMouseUp: (e) => {
-                    e.target.style.boxShadow = '2px 2px 0px #633514';
-                    e.target.style.top = '0';
-                    e.target.style.left = '0';
-                },
-                onMouseLeave: (e) => {
-                    e.target.style.boxShadow = '2px 2px 0px #633514';
-                    e.target.style.top = '0';
-                    e.target.style.left = '0';
-                }
-            }, 'Back to Menu')
-        ]),
-            isLoading ? [
+        }, isLoading ? [
             // Loading state content
             React.createElement('div', {
                 style: {
@@ -1510,6 +1473,51 @@ window.PlaylistDashboard = () => {
                 ])
             ])
         ] : []),
+
+        // Add the Back button here, AFTER the plotRef div
+        React.createElement('div', {
+            style: {
+                textAlign: 'center',
+                marginBottom: '30px',
+                display: isLoading ? 'none' : 'block' // Only show when not loading
+            }
+        }, [
+            React.createElement('button', {
+                onClick: () => {
+                    window.location.href = '/logout';
+                },
+                style: {
+                    backgroundColor: '#FFFFFF',
+                    border: '2px solid #633514',
+                    padding: '8px 15px',
+                    boxShadow: '2px 2px 0px #633514',
+                    fontFamily: "'Georgia', serif",
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    minWidth: '140px',
+                    textAlign: 'center',
+                    position: 'relative',
+                    top: '0',
+                    left: '0',
+                    transition: 'all 0.1s'
+                },
+                onMouseDown: (e) => {
+                    e.target.style.boxShadow = '1px 1px 0px #633514';
+                    e.target.style.top = '1px';
+                    e.target.style.left = '1px';
+                },
+                onMouseUp: (e) => {
+                    e.target.style.boxShadow = '2px 2px 0px #633514';
+                    e.target.style.top = '0';
+                    e.target.style.left = '0';
+                },
+                onMouseLeave: (e) => {
+                    e.target.style.boxShadow = '2px 2px 0px #633514';
+                    e.target.style.top = '0';
+                    e.target.style.left = '0';
+                }
+            }, 'Back to Menu')
+        ]),
 
         // Selection instruction
         selectedPlaylists.length < 2 && React.createElement('p', {
