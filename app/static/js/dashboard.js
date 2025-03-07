@@ -1433,18 +1433,17 @@ window.PlaylistDashboard = () => {
         }, [
             React.createElement('button', {
                 onClick: () => {
-                    // Take user back to year selection
-                    window.location.href = '/logout';  // Using logout to clear session, then it redirects to index
+                    window.location.href = '/logout';
                 },
                 style: {
                     backgroundColor: '#FFFFFF',
                     border: '2px solid #633514',
                     padding: '8px 15px',
                     boxShadow: '2px 2px 0px #633514',
-                    fontFamily: 'Arial',
+                    fontFamily: "'Georgia', serif",
                     fontSize: '14px',
                     cursor: 'pointer',
-                    minWidth: '120px',
+                    minWidth: '140px',
                     textAlign: 'center',
                     position: 'relative',
                     top: '0',
