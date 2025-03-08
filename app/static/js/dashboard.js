@@ -317,19 +317,28 @@ window.PlaylistDashboard = () => {
             marker: {
                 size: 15,
                 color: playlistData.map(p => {
-                    // If it's selected, use green
+                    // If it's the user's own playlist
+                    if (userPlaylist && p.name === userPlaylist.name) {
+                        return '#cb6d51';  // Terra cotta for user's playlist
+                    }
+                    
+                    // If it's the closest playlist
+                    if (closestPlaylist && p.name === closestPlaylist.name) {
+                        return '#e6d7b8';  // Light beige for closest
+                    }
+                    
+                    // If it's the farthest playlist
+                    if (farthestPlaylist && p.name === farthestPlaylist.name) {
+                        return '#d5d5ce';  // Light gray for farthest
+                    }
+                    
+                    // If it's selected
                     if (selectedPlaylists.includes(p.name)) {
-                        return '#0f5c2e';
+                        return '#0f5c2e';  // Green for selected
                     }
                     
-                    // If it's the current user's playlist for the selected year, use terra cotta
-                    const currentUsername = window.currentUsername || '';
-                    if (p.name && p.name.includes(currentUsername) && p.name.includes(window.selectedYear)) {
-                        return '#cb6d51';
-                    }
-                    
-                    // Otherwise use the default beige
-                    return '#c9b687';
+                    // Default color
+                    return '#c9b687';  // Beige for other playlists
                 }),
                 opacity: 0.8
             },
@@ -414,16 +423,22 @@ window.PlaylistDashboard = () => {
         const currentCamera = plotRef.current.layout?.scene?.camera;
 
         // Find user's selected year playlist
-        const userPlaylist = window.selectedYear ? 
-            playlistData.find(p => p.playlist_name && p.playlist_name.includes(window.selectedYear)) : 
-            null;
-            
-        // If we have the user's playlist, calculate distances to all others
+        const currentUsername = window.currentUsername || '';
+        const selectedYear = window.selectedYear || '';
+
+        // Find the user's playlist more precisely
+        const userPlaylist = playlistData.find(p => 
+            p.name && 
+            p.name.includes(currentUsername) && 
+            p.name.includes(selectedYear)
+        );
+
+        // Calculate distances only if we found the user's playlist
         let closestPlaylist = null;
         let farthestPlaylist = null;
-        
+
         if (userPlaylist && playlistData.length > 2) {
-            // Get the ranges for scaling
+            // Your existing distance calculation code...
             const popularityValues = playlistData.map(p => p.avgPopularity);
             const genreValues = playlistData.map(p => p.genreCount);
             const yearValues = playlistData.map(p => p.avgYear);
@@ -434,7 +449,7 @@ window.PlaylistDashboard = () => {
             
             // Calculate scaled distances
             const playlistsWithDistance = playlistData
-                .filter(p => p !== userPlaylist)
+                .filter(p => p !== userPlaylist)  // Don't include the user's playlist
                 .map(p => {
                     const dx = (p.avgPopularity - userPlaylist.avgPopularity) / popularityRange;
                     const dy = (p.genreCount - userPlaylist.genreCount) / genreRange;
@@ -447,8 +462,10 @@ window.PlaylistDashboard = () => {
             playlistsWithDistance.sort((a, b) => a.distance - b.distance);
             
             // Find closest and farthest
-            closestPlaylist = playlistsWithDistance[0];
-            farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
+            if (playlistsWithDistance.length > 0) {
+                closestPlaylist = playlistsWithDistance[0];
+                farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
+            }
         }
         
         // Create the main data trace
@@ -468,20 +485,28 @@ window.PlaylistDashboard = () => {
             marker: {
                 size: 15,
                 color: playlistData.map(p => {
-                    const currentUsername = window.currentUsername || '';
-                    
-                    // If it's the current user's playlist, use terra cotta (Your Playlist)
-                    if (p.name && p.name.includes(currentUsername) && p.name.includes(window.selectedYear)) {
-                        return '#cb6d51'; // Terra cotta for user's own playlist
+                    // If it's the user's own playlist
+                    if (userPlaylist && p.name === userPlaylist.name) {
+                        return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
-                    // If it's selected, use green
+                    // If it's the closest playlist
+                    if (closestPlaylist && p.name === closestPlaylist.name) {
+                        return '#e6d7b8';  // Light beige for closest
+                    }
+                    
+                    // If it's the farthest playlist
+                    if (farthestPlaylist && p.name === farthestPlaylist.name) {
+                        return '#d5d5ce';  // Light gray for farthest
+                    }
+                    
+                    // If it's selected
                     if (selectedPlaylists.includes(p.name)) {
-                        return '#0f5c2e'; // Green for selected playlists
+                        return '#0f5c2e';  // Green for selected
                     }
                     
-                    // Otherwise use the default beige
-                    return '#c9b687';
+                    // Default color
+                    return '#c9b687';  // Beige for other playlists
                 }),
                 opacity: 0.8
             },
