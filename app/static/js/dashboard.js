@@ -294,14 +294,26 @@ window.PlaylistDashboard = () => {
         // Find user's selected year playlist
         const currentUsername = window.currentUsername || '';
         const selectedYear = window.selectedYear || '';
-        
-        // Find the user's playlist
-        const userPlaylist = window.selectedYear ? 
-            playlistData.find(p => 
-                p.name && 
+
+        // Find the user's playlist with clear logging
+        const userPlaylist = playlistData.find(p => {
+            const isUserPlaylist = p.name && 
                 p.name.includes(currentUsername) && 
-                p.name.includes(selectedYear)
-            ) : null;
+                p.name.includes(selectedYear);
+            
+            if (isUserPlaylist) {
+                console.log(`Found user playlist: ${p.name}`);
+            }
+            return isUserPlaylist;
+        });
+
+        const playlistLabels = playlistData.map(p => {
+            // For any playlist that has tommertime but should be for current user
+            if (p.name && p.name.includes('tommertime in 2024') && currentUsername !== 'tommertime') {
+                return `${currentUsername} in 2024`; // Override with current username
+            }
+            return p.name || p.playlist_name || 'Unnamed Playlist';
+        });
                 
         // If we have the user's playlist, calculate distances to all others
         let closestPlaylist = null;
@@ -356,25 +368,7 @@ window.PlaylistDashboard = () => {
             x: playlistData.map(p => p.avgPopularity),
             y: playlistData.map(p => p.genreCount),
             z: playlistData.map(p => p.avgYear),
-            text: playlistData.map(p => {
-                // Use name for current user's playlist (which already has the year)
-                // For other playlists, append the year if it's missing
-                if (p.name && p.name.includes(window.currentUsername)) {
-                    return p.name; // Already formatted as "Username in Year"
-                } else {
-                    // For other playlists, make sure the year is included
-                    const playlistName = p.playlist_name || p.name || '';
-                    // Check if the name already has a year in it
-                    const hasYear = /\d{4}/.test(playlistName);
-                    if (hasYear) {
-                        return playlistName;
-                    } else {
-                        // Try to extract year from other fields
-                        const year = p.avgYear ? Math.round(p.avgYear) : '';
-                        return year ? `${playlistName} ${year}` : playlistName;
-                    }
-                }
-            }),
+            text: playlistLabels, // Use consistent labels for display
             textfont: {
                 size: 14, 
                 family: 'Inter, sans-serif',
@@ -383,24 +377,24 @@ window.PlaylistDashboard = () => {
             textposition: 'top',
             marker: {
                 size: 15,
-                color: playlistData.map(p => {
-                    // If it's the user's own playlist
-                    if (userPlaylist && p.name === userPlaylist.name) {
+                color: playlistData.map((p, index) => {
+                    // If it's the user's own playlist (use index to match with label)
+                    if (userPlaylist && (p === userPlaylist || playlistLabels[index].includes(`${currentUsername} in ${selectedYear}`))) {
                         return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
                     // If it's the closest playlist
-                    if (closestPlaylist && p.name === closestPlaylist.name) {
+                    if (closestPlaylist && p === closestPlaylist) {
                         return '#e6d7b8';  // Light beige for closest
                     }
                     
                     // If it's the farthest playlist
-                    if (farthestPlaylist && p.name === farthestPlaylist.name) {
+                    if (farthestPlaylist && p === farthestPlaylist) {
                         return '#d5d5ce';  // Light gray for farthest
                     }
                     
                     // If it's selected
-                    if (selectedPlaylists.includes(p.name)) {
+                    if (selectedPlaylists.includes(playlistLabels[index])) {
                         return '#0f5c2e';  // Green for selected
                     }
                     
@@ -410,8 +404,8 @@ window.PlaylistDashboard = () => {
                 opacity: 0.8
             },
             hoverinfo: 'text',
-            hovertext: playlistData.map(p => 
-                `<b>${p.playlist_name}</b><br>` +
+            hovertext: playlistData.map((p, index) => 
+                `<b>${playlistLabels[index]}</b><br>` +
                 `Popularity: ${Math.round(p.avgPopularity)}<br>` +
                 `Genres: ${p.genreCount}<br>` +
                 `Year: ${p.avgYear.toFixed(1)}`
