@@ -421,24 +421,25 @@ window.PlaylistDashboard = () => {
         
         // Store current camera position if it exists
         const currentCamera = plotRef.current.layout?.scene?.camera;
-
+    
         // Find user's selected year playlist
         const currentUsername = window.currentUsername || '';
         const selectedYear = window.selectedYear || '';
-
-        // Find the user's playlist more precisely
-        const userPlaylist = playlistData.find(p => 
-            p.name && 
-            p.name.includes(currentUsername) && 
-            p.name.includes(selectedYear)
-        );
-
-        // Calculate distances only if we found the user's playlist
+        
+        // Find the user's playlist
+        const userPlaylist = window.selectedYear ? 
+            playlistData.find(p => 
+                p.name && 
+                p.name.includes(currentUsername) && 
+                p.name.includes(selectedYear)
+            ) : null;
+                
+        // If we have the user's playlist, calculate distances to all others
         let closestPlaylist = null;
         let farthestPlaylist = null;
-
+        
         if (userPlaylist && playlistData.length > 2) {
-            // Your existing distance calculation code...
+            // Get the ranges for scaling
             const popularityValues = playlistData.map(p => p.avgPopularity);
             const genreValues = playlistData.map(p => p.genreCount);
             const yearValues = playlistData.map(p => p.avgYear);
@@ -449,7 +450,7 @@ window.PlaylistDashboard = () => {
             
             // Calculate scaled distances
             const playlistsWithDistance = playlistData
-                .filter(p => p !== userPlaylist)  // Don't include the user's playlist
+                .filter(p => p !== userPlaylist)
                 .map(p => {
                     const dx = (p.avgPopularity - userPlaylist.avgPopularity) / popularityRange;
                     const dy = (p.genreCount - userPlaylist.genreCount) / genreRange;
@@ -462,10 +463,8 @@ window.PlaylistDashboard = () => {
             playlistsWithDistance.sort((a, b) => a.distance - b.distance);
             
             // Find closest and farthest
-            if (playlistsWithDistance.length > 0) {
-                closestPlaylist = playlistsWithDistance[0];
-                farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
-            }
+            closestPlaylist = playlistsWithDistance[0];
+            farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
         }
         
         // Create the main data trace
@@ -475,7 +474,7 @@ window.PlaylistDashboard = () => {
             x: playlistData.map(p => p.avgPopularity),
             y: playlistData.map(p => p.genreCount),
             z: playlistData.map(p => p.avgYear),
-            text: playlistData.map(p => p.playlist_name || p.name || 'Unnamed Playlist'),
+            text: playlistData.map(p => p.name || p.playlist_name || 'Unnamed Playlist'),
             textfont: {
                 size: 14, 
                 family: 'Inter, sans-serif',
