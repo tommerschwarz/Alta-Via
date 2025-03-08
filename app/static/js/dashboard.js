@@ -307,33 +307,46 @@ window.PlaylistDashboard = () => {
         let closestPlaylist = null;
         let farthestPlaylist = null;
         
+        // In the second plot effect where distances are calculated
         if (userPlaylist && playlistData.length > 2) {
-            // Get the ranges for scaling
-            const popularityValues = playlistData.map(p => p.avgPopularity);
-            const genreValues = playlistData.map(p => p.genreCount);
-            const yearValues = playlistData.map(p => p.avgYear);
+            // Make sure userPlaylist isn't included in distance calculations
+            const playlistsToCompare = playlistData.filter(p => 
+                p.name !== userPlaylist.name && 
+                p.playlist_id !== userPlaylist.playlist_id
+            );
             
-            const popularityRange = Math.max(...popularityValues) - Math.min(...popularityValues) || 1;
-            const genreRange = Math.max(...genreValues) - Math.min(...genreValues) || 1;
-            const yearRange = Math.max(...yearValues) - Math.min(...yearValues) || 1;
-            
-            // Calculate scaled distances
-            const playlistsWithDistance = playlistData
-                .filter(p => p !== userPlaylist)
-                .map(p => {
+            // Only proceed if we have playlists to compare
+            if (playlistsToCompare.length > 0) {
+                // Get the ranges for scaling
+                const popularityValues = playlistData.map(p => p.avgPopularity);
+                const genreValues = playlistData.map(p => p.genreCount);
+                const yearValues = playlistData.map(p => p.avgYear);
+                
+                const popularityRange = Math.max(...popularityValues) - Math.min(...popularityValues) || 1;
+                const genreRange = Math.max(...genreValues) - Math.min(...genreValues) || 1;
+                const yearRange = Math.max(...yearValues) - Math.min(...yearValues) || 1;
+                
+                // Calculate scaled distances with logging
+                const playlistsWithDistance = playlistsToCompare.map(p => {
                     const dx = (p.avgPopularity - userPlaylist.avgPopularity) / popularityRange;
                     const dy = (p.genreCount - userPlaylist.genreCount) / genreRange;
                     const dz = (p.avgYear - userPlaylist.avgYear) / yearRange;
                     const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    console.log(`Distance from ${userPlaylist.name} to ${p.name}: ${distance}`);
                     return { ...p, distance };
                 });
+                    
+                // Sort by distance
+                playlistsWithDistance.sort((a, b) => a.distance - b.distance);
                 
-            // Sort by distance
-            playlistsWithDistance.sort((a, b) => a.distance - b.distance);
-            
-            // Find closest and farthest
-            closestPlaylist = playlistsWithDistance[0];
-            farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
+                // Find closest and farthest
+                if (playlistsWithDistance.length > 0) {
+                    closestPlaylist = playlistsWithDistance[0];
+                    farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
+                    console.log(`Closest playlist: ${closestPlaylist.name} (${closestPlaylist.distance})`);
+                    console.log(`Farthest playlist: ${farthestPlaylist.name} (${farthestPlaylist.distance})`);
+                }
+            }
         }
         
         // Create the main data trace
@@ -343,7 +356,25 @@ window.PlaylistDashboard = () => {
             x: playlistData.map(p => p.avgPopularity),
             y: playlistData.map(p => p.genreCount),
             z: playlistData.map(p => p.avgYear),
-            text: playlistData.map(p => p.name || p.playlist_name || 'Unnamed Playlist'),
+            text: playlistData.map(p => {
+                // Use name for current user's playlist (which already has the year)
+                // For other playlists, append the year if it's missing
+                if (p.name && p.name.includes(window.currentUsername)) {
+                    return p.name; // Already formatted as "Username in Year"
+                } else {
+                    // For other playlists, make sure the year is included
+                    const playlistName = p.playlist_name || p.name || '';
+                    // Check if the name already has a year in it
+                    const hasYear = /\d{4}/.test(playlistName);
+                    if (hasYear) {
+                        return playlistName;
+                    } else {
+                        // Try to extract year from other fields
+                        const year = p.avgYear ? Math.round(p.avgYear) : '';
+                        return year ? `${playlistName} ${year}` : playlistName;
+                    }
+                }
+            }),
             textfont: {
                 size: 14, 
                 family: 'Inter, sans-serif',
