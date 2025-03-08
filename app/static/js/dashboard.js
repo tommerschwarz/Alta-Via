@@ -274,29 +274,13 @@ window.PlaylistDashboard = () => {
         });
     }, []);
 
-    // Add this effect after your data fetch effect:
     React.useEffect(() => {
-        // Only run this when we first get playlist data
+        // Don't auto-select anything - just leave it empty until user clicks
         if (playlistData.length > 0 && selectedPlaylists.length === 0) {
-            const currentUsername = window.currentUsername || '';
-            const selectedYear = window.selectedYear || '';
-            console.log("Looking for playlist for", currentUsername, "in year", selectedYear);
-            
-            // Find the user's playlist
-            const userPlaylist = playlistData.find(p => 
-                (p.name && p.name.includes(currentUsername) && p.name.includes(selectedYear)) ||
-                (p.name && currentUsername && p.name === `${currentUsername} in ${selectedYear}`)
-            );
-            
-            if (userPlaylist) {
-                console.log("Auto-selecting user playlist:", userPlaylist.name);
-                setSelectedPlaylists([userPlaylist.name]);
-            } else {
-                console.log("No matching playlist found for", currentUsername, "in", selectedYear);
-                console.log("Available playlists:", playlistData.map(p => p.name));
-            }
+            // Initialize with empty selection, so the user has to click to select
+            setSelectedPlaylists([]);
         }
-    }, [playlistData, selectedPlaylists]);
+    }, [playlistData]);
 
 
     // Update the plot effect
@@ -484,27 +468,19 @@ window.PlaylistDashboard = () => {
             marker: {
                 size: 15,
                 color: playlistData.map(p => {
-                    // Selected playlists are green
-                    if (selectedPlaylists.includes(p.playlist_name)) {
-                        return '#0f5c2e';
+                    const currentUsername = window.currentUsername || '';
+                    
+                    // If it's the current user's playlist, use terra cotta (Your Playlist)
+                    if (p.name && p.name.includes(currentUsername) && p.name.includes(window.selectedYear)) {
+                        return '#cb6d51'; // Terra cotta for user's own playlist
                     }
                     
-                    // User's playlist is terra cotta
-                    if (userPlaylist && p.playlist_name === userPlaylist.playlist_name) {
-                        return '#cb6d51';
+                    // If it's selected, use green
+                    if (selectedPlaylists.includes(p.name)) {
+                        return '#0f5c2e'; // Green for selected playlists
                     }
                     
-                    // Closest playlist is light beige
-                    if (closestPlaylist && p.playlist_name === closestPlaylist.playlist_name) {
-                        return '#e6d7b8';
-                    }
-                    
-                    // Farthest playlist is light gray
-                    if (farthestPlaylist && p.playlist_name === farthestPlaylist.playlist_name) {
-                        return '#d5d5ce';
-                    }
-                    
-                    // Default color is beige
+                    // Otherwise use the default beige
                     return '#c9b687';
                 }),
                 opacity: 0.8
@@ -531,7 +507,7 @@ window.PlaylistDashboard = () => {
                 x: [null],
                 y: [null],
                 z: [null],
-                name: 'Your Playlist',
+                name: 'Your Playlist', // Clear label that this is the user's playlist
                 marker: { color: '#cb6d51', size: 10 },
                 showlegend: true,
                 hoverinfo: 'none'
