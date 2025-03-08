@@ -1,20 +1,7 @@
 window.PlaylistDashboard = () => {  
     const [playlistData, setPlaylistData] = React.useState([]);
 
-    const [selectedPlaylists, setSelectedPlaylists] = React.useState(() => {
-        // Find the user's own playlist first
-        if (playlistData && playlistData.length > 0 && window.selectedYear) {
-            const currentUsername = getCurrentUsername(); // Get from session or HTML attribute
-            const userPlaylist = playlistData.find(p => 
-                p.name && p.name.includes(currentUsername) && p.name.includes(window.selectedYear)
-            );
-            
-            if (userPlaylist) {
-                return [userPlaylist.name];
-            }
-        }
-        return []; // Empty array if no match found
-    });
+    const [selectedPlaylists, setSelectedPlaylists] = React.useState([]);
 
     const plotRef = React.useRef(null);
     const yearHistRef = React.useRef(null);
@@ -287,6 +274,31 @@ window.PlaylistDashboard = () => {
         });
     }, []);
 
+    // Add this effect after your data fetch effect:
+    React.useEffect(() => {
+        // Only run this when we first get playlist data
+        if (playlistData.length > 0 && selectedPlaylists.length === 0) {
+            const currentUsername = window.currentUsername || '';
+            const selectedYear = window.selectedYear || '';
+            console.log("Looking for playlist for", currentUsername, "in year", selectedYear);
+            
+            // Find the user's playlist
+            const userPlaylist = playlistData.find(p => 
+                (p.name && p.name.includes(currentUsername) && p.name.includes(selectedYear)) ||
+                (p.name && currentUsername && p.name === `${currentUsername} in ${selectedYear}`)
+            );
+            
+            if (userPlaylist) {
+                console.log("Auto-selecting user playlist:", userPlaylist.name);
+                setSelectedPlaylists([userPlaylist.name]);
+            } else {
+                console.log("No matching playlist found for", currentUsername, "in", selectedYear);
+                console.log("Available playlists:", playlistData.map(p => p.name));
+            }
+        }
+    }, [playlistData, selectedPlaylists]);
+
+
     // Update the plot effect
     React.useEffect(() => {
         if (!plotRef.current || !playlistData || playlistData.length === 0) return;
@@ -322,13 +334,16 @@ window.PlaylistDashboard = () => {
                 size: 15,
                 color: playlistData.map(p => {
                     // If it's selected, use green
-                    if (selectedPlaylists.includes(p.playlist_name)) {
+                    if (selectedPlaylists.includes(p.name)) {
                         return '#0f5c2e';
                     }
-                    // If it's the user's selected year playlist, use terra cotta
-                    if (p.playlist_name && p.playlist_name.includes(window.selectedYear)) {
+                    
+                    // If it's the current user's playlist for the selected year, use terra cotta
+                    const currentUsername = window.currentUsername || '';
+                    if (p.name && p.name.includes(currentUsername) && p.name.includes(window.selectedYear)) {
                         return '#cb6d51';
                     }
+                    
                     // Otherwise use the default beige
                     return '#c9b687';
                 }),
@@ -386,7 +401,7 @@ window.PlaylistDashboard = () => {
             // Add click handler
             plotRef.current.on('plotly_click', (data) => {
                 if (!data.points || data.points.length === 0) return;
-                const pointName = data.points[0].text;
+                const pointName = playlistData[data.points[0].pointNumber].name;
                 if (!pointName) return;
                 
                 const newSelection = selectedPlaylists.includes(pointName) 
