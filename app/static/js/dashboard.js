@@ -303,6 +303,9 @@ window.PlaylistDashboard = () => {
         const currentUsername = window.currentUsername || '';
         const selectedYear = window.selectedYear || '';
 
+        console.log(`!!! currentUsername IS: ${currentUsername}`);
+        console.log(`!!! userPlaylist IS: ${userPlaylist}`);
+
         // Find the user's playlist with clear logging
         const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
         const userPlaylist = playlistData.find(p => p.name === exactUserPlaylistName);
