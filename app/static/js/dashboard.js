@@ -304,16 +304,16 @@ window.PlaylistDashboard = () => {
         const selectedYear = window.selectedYear || '';
 
         // Find the user's playlist with clear logging
-        const userPlaylist = playlistData.find(p => {
-            const isUserPlaylist = p.name && 
-                p.name.includes(currentUsername) && 
-                p.name.includes(selectedYear);
-            
-            if (isUserPlaylist) {
-                console.log(`Found user playlist: ${p.name}`);
-            }
-            return isUserPlaylist;
-        });
+        const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
+        const userPlaylist = playlistData.find(p => p.name === exactUserPlaylistName);
+
+        if (userPlaylist) {
+            console.log(`Found user playlist: ${userPlaylist.name}`);
+        } else {
+            console.log(`No exact match found for "${exactUserPlaylistName}"`);
+            // Log all playlist names for debugging
+            console.log("Available playlists:", playlistData.map(p => p.name));
+        }
                 
         // If we have the user's playlist, calculate distances to all others
         let closestPlaylist = null;
