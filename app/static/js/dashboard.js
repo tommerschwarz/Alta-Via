@@ -386,7 +386,7 @@ window.PlaylistDashboard = () => {
                 color: playlistData.map((p, index) => {
                     // If it's the user's own playlist (use index to match with label)
                     // if (userPlaylist && (p === userPlaylist || playlistLabels[index].includes(`${currentUsername} in ${selectedYear}`))) {
-                    if (userPlaylist) {
+                    if (p === userPlaylist) {
                         return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
