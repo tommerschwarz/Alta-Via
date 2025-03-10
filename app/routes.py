@@ -147,7 +147,7 @@ def callback():
                                     'type': 'detected'
                                 }
                 except Exception as e:
-                    logger.error(f"Error checking playlist {playlist['name']} as potential wrapped: {str(e)}")
+                    logger.error(f"Error checking playlist {playlist['playlist_name']} as potential wrapped: {str(e)}")
         
         # Store the playlist map in session for later use
         session['wrapped_playlist_map'] = wrapped_playlist_map

@@ -290,6 +290,14 @@ window.PlaylistDashboard = () => {
         
         // Store current camera position if it exists
         const currentCamera = plotRef.current.layout?.scene?.camera;
+
+        // Add diagnostic logging for all playlists
+        console.log("All playlists data:", playlistData.map(p => ({
+            name: p.name,
+            playlist_name: p.playlist_name,
+            avgYear: p.avgYear
+        })));
+
     
         // Find user's selected year playlist
         const currentUsername = window.currentUsername || '';
@@ -306,18 +314,16 @@ window.PlaylistDashboard = () => {
             }
             return isUserPlaylist;
         });
-
-        const playlistLabels = playlistData.map(p => {
-            // For any playlist that has tommertime but should be for current user
-            if (p.name && p.name.includes('tommertime in 2024') && currentUsername !== 'tommertime') {
-                return `${currentUsername} in 2024`; // Override with current username
-            }
-            return p.name || p.playlist_name || 'Unnamed Playlist';
-        });
                 
         // If we have the user's playlist, calculate distances to all others
         let closestPlaylist = null;
         let farthestPlaylist = null;
+
+        const playlistLabels = playlistData.map(p => {
+            // For display purposes, prefer playlist_name which is the original name
+            // This is the key fix - we need to generate consistent labels
+            return p.playlist_name || p.name || 'Unnamed Playlist';
+        });
         
         // In the second plot effect where distances are calculated
         if (userPlaylist && playlistData.length > 2) {
