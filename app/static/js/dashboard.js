@@ -311,6 +311,7 @@ window.PlaylistDashboard = () => {
         const userPlaylist = playlistData.find(p => p.name === exactUserPlaylistName);
 
         console.log(`!!! exactUserPlaylistName IS: ${exactUserPlaylistName}`);
+        console.log(`!!! userPlaylist IS: ${userPlaylist}`);
 
         if (userPlaylist) {
             console.log(`Found user playlist: ${userPlaylist.name}`);
@@ -391,7 +392,7 @@ window.PlaylistDashboard = () => {
                 color: playlistData.map((p, index) => {
                     // If it's the user's own playlist (use index to match with label)
                     // if (userPlaylist && (p === userPlaylist || playlistLabels[index].includes(`${currentUsername} in ${selectedYear}`))) {
-                    if (p === userPlaylist) {
+                    if (userPlaylist && p === userPlaylist) {
                         return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
