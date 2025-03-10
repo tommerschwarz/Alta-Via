@@ -390,21 +390,24 @@ window.PlaylistDashboard = () => {
             marker: {
                 size: 15,
                 color: playlistData.map((p, index) => {
-                    // If it's the user's own playlist (use index to match with label)
-                    // if (userPlaylist && (p === userPlaylist || playlistLabels[index].includes(`${currentUsername} in ${selectedYear}`))) {
-                    if (userPlaylist && p.name === exactUserPlaylistName) {
-                        console.log(`!!! p IS: ${p}`);
-                        console.log(`!!! p.name IS: ${p.name}`);
+                    // Calculate the exact user playlist name here to be sure it matches
+                    const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
+                    
+                    // If it's the user's own playlist - use EXACT match
+                    if (p.name === exactUserPlaylistName) {
+                        console.log(`Marking as user playlist: ${p.name}`);
                         return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
                     // If it's the closest playlist
                     if (closestPlaylist && p === closestPlaylist) {
+                        console.log(`Marking as closest playlist: ${p.name}`);
                         return '#e6d7b8';  // Light beige for closest
                     }
                     
                     // If it's the farthest playlist
                     if (farthestPlaylist && p === farthestPlaylist) {
+                        console.log(`Marking as farthest playlist: ${p.name}`);
                         return '#d5d5ce';  // Light gray for farthest
                     }
                     
