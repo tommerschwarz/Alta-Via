@@ -393,6 +393,8 @@ window.PlaylistDashboard = () => {
                     // If it's the user's own playlist (use index to match with label)
                     // if (userPlaylist && (p === userPlaylist || playlistLabels[index].includes(`${currentUsername} in ${selectedYear}`))) {
                     if (userPlaylist && p === userPlaylist) {
+                        console.log(`!!! p IS: ${p}`);
+                        console.log(`!!! p.name IS: ${p.name}`);
                         return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
