@@ -203,6 +203,13 @@ def get_playlist_metrics():
         
         logger.info(f"Current user: {display_username} ({user_id}), selected year: {selected_year}")
         
+        # Get the user's playlist ID if available in the session
+        user_playlist_id = None
+        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+        if selected_year in wrapped_playlist_map:
+            user_playlist_id = wrapped_playlist_map[selected_year]['id']
+            logger.info(f"User's playlist ID for {selected_year}: {user_playlist_id}")
+        
         all_stored_playlists = []
         all_stored_playlist_ids = set()
         
@@ -358,7 +365,23 @@ def get_playlist_metrics():
         logger.info(f"Returning {len(all_stored_playlists)} playlists")
         for i, p in enumerate(all_stored_playlists):
             logger.info(f"Playlist {i+1}: {p.get('name')} (ID: {p.get('playlist_id')})")
+        
+
+        # Before returning the playlists, add a flag to identify the user's playlist
+        for playlist in all_stored_playlists:
+            # Mark if this is the user's playlist
+            playlist['is_user_playlist'] = (
+                playlist.get('playlist_id') == user_playlist_id or
+                playlist.get('name') == f"{display_username} in {selected_year}"
+            )
             
+            # For debugging - log which playlist is identified as the user's
+            if playlist['is_user_playlist']:
+                logger.info(f"Marked as user's playlist: {playlist.get('name')} (ID: {playlist.get('playlist_id')})")
+        
+        # Log what we're returning
+        logger.info(f"Returning {len(all_stored_playlists)} playlists")
+
         return jsonify(all_stored_playlists)
         
     except Exception as e:

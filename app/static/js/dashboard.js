@@ -390,33 +390,43 @@ window.PlaylistDashboard = () => {
             marker: {
                 size: 15,
                 color: playlistData.map((p, index) => {
-                    // Calculate the exact user playlist name here to be sure it matches
-                    const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
+                    // Log the playlist being processed
+                    console.log(`Processing playlist: ${p.name}, ID: ${p.playlist_id}`);
                     
-                    // Enhanced logging for debugging
-                    console.log(`Comparing playlist: ${p.name} (ID: ${p.playlist_id}) with expected: ${exactUserPlaylistName}`);
+                    // Get current logged-in username and selected year from window
+                    const currentUsername = window.currentUsername || '';
+                    const selectedYear = window.selectedYear || '';
+                    const userPlaylistId = window.userPlaylistId || '';
                     
-                    // NEW IDENTIFICATION LOGIC - use multiple criteria to identify user's playlist
-                    const isUserPlaylist = 
-                        // Match by exact playlist name
-                        (p.name === exactUserPlaylistName) || 
-                        // Match by ID from session if playlist_id matched wrapped_playlist_map
-                        (window.userPlaylistId && p.playlist_id === window.userPlaylistId);
+                    console.log(`Current user: ${currentUsername}, Year: ${selectedYear}, ID: ${userPlaylistId}`);
+                    
+                    // STRICT MATCHING for user's playlist - this is the key change
+                    // We now check multiple specific conditions to identify the user's playlist
+                    const isUserPlaylist = (
+                        // Check if this is the user's playlist by ID (most reliable method)
+                        (userPlaylistId && p.playlist_id === userPlaylistId) ||
+                        
+                        // Exact string match including case sensitivity
+                        (p.name === `${currentUsername} in ${selectedYear}`) ||
+                        
+                        // Check display_name if it exists
+                        (p.display_name === `${currentUsername} in ${selectedYear}`)
+                    );
                     
                     if (isUserPlaylist) {
-                        console.log(`MATCH! Marking as user playlist: ${p.name} (ID: ${p.playlist_id})`);
+                        console.log(`✓ MATCH - This is user's playlist: ${p.name}`);
                         return '#cb6d51';  // Terra cotta for user's playlist
+                    } else {
+                        console.log(`✗ NOT MATCH - Not user's playlist: ${p.name}`);
                     }
                     
                     // If it's the closest playlist
                     if (closestPlaylist && p.playlist_id === closestPlaylist.playlist_id) {
-                        console.log(`Marking as closest playlist: ${p.name}`);
                         return '#e6d7b8';  // Light beige for closest
                     }
                     
                     // If it's the farthest playlist
                     if (farthestPlaylist && p.playlist_id === farthestPlaylist.playlist_id) {
-                        console.log(`Marking as farthest playlist: ${p.name}`);
                         return '#d5d5ce';  // Light gray for farthest
                     }
                     
