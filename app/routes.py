@@ -34,7 +34,17 @@ def index():
     """Serve the main page"""
     selected_year = session.get('selected_year')
     username = session.get('display_name', '')
-    return render_template('index.html', selected_year=selected_year, username=username)
+    
+    # Add this section to pass the user's playlist ID to the frontend
+    user_playlist_id = None
+    wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+    if selected_year in wrapped_playlist_map:
+        user_playlist_id = wrapped_playlist_map[selected_year]['id']
+        
+    return render_template('index.html', 
+                          selected_year=selected_year, 
+                          username=username,
+                          user_playlist_id=user_playlist_id)
 
 @routes.route('/login')
 def login():

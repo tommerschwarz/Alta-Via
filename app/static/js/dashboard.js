@@ -393,20 +393,29 @@ window.PlaylistDashboard = () => {
                     // Calculate the exact user playlist name here to be sure it matches
                     const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
                     
-                    // If it's the user's own playlist - use EXACT match
-                    if (p.name === exactUserPlaylistName) {
-                        console.log(`Marking as user playlist: ${p.name}`);
+                    // Enhanced logging for debugging
+                    console.log(`Comparing playlist: ${p.name} (ID: ${p.playlist_id}) with expected: ${exactUserPlaylistName}`);
+                    
+                    // NEW IDENTIFICATION LOGIC - use multiple criteria to identify user's playlist
+                    const isUserPlaylist = 
+                        // Match by exact playlist name
+                        (p.name === exactUserPlaylistName) || 
+                        // Match by ID from session if playlist_id matched wrapped_playlist_map
+                        (window.userPlaylistId && p.playlist_id === window.userPlaylistId);
+                    
+                    if (isUserPlaylist) {
+                        console.log(`MATCH! Marking as user playlist: ${p.name} (ID: ${p.playlist_id})`);
                         return '#cb6d51';  // Terra cotta for user's playlist
                     }
                     
                     // If it's the closest playlist
-                    if (closestPlaylist && p === closestPlaylist) {
+                    if (closestPlaylist && p.playlist_id === closestPlaylist.playlist_id) {
                         console.log(`Marking as closest playlist: ${p.name}`);
                         return '#e6d7b8';  // Light beige for closest
                     }
                     
                     // If it's the farthest playlist
-                    if (farthestPlaylist && p === farthestPlaylist) {
+                    if (farthestPlaylist && p.playlist_id === farthestPlaylist.playlist_id) {
                         console.log(`Marking as farthest playlist: ${p.name}`);
                         return '#d5d5ce';  // Light gray for farthest
                     }

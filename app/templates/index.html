@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MetaWrapped</title>
+    <title>AltaVia</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Condensed:wght@400;700&family=Georgia&display=swap" rel="stylesheet">
     <style>
@@ -33,6 +33,13 @@
     <script>
         window.currentUsername = "{{ username }}";
         window.selectedYear = "{{ selected_year }}";
+        // Add this line to store the user's playlist ID
+        window.userPlaylistId = "{{ user_playlist_id }}";
+        
+        // Log these values to confirm they're correctly set
+        console.log("Username:", window.currentUsername);
+        console.log("Selected Year:", window.selectedYear);
+        console.log("User Playlist ID:", window.userPlaylistId);
     </script>
 
     <!-- Load your component -->
