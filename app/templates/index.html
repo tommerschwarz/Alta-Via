@@ -39,7 +39,15 @@
 <body>
     <!-- No Playlists Message - This will only be shown when no_playlists is True -->
     {% if no_playlists %}
-    <div class="no-playlists-container">
+    <div class="no-playlists-container" style="
+        max-width: 600px;
+        margin: 60px auto;
+        padding: 40px;
+        text-align: center;
+        background-color: #F2F0ED;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    ">
         <h2 style="
             margin-bottom: 24px;
             color: #633514;
@@ -120,7 +128,7 @@
         </div>
     </div>
     {% else %}
-    <!-- Normal playlist dashboard for users with playlists -->
+    <!-- Your regular dashboard content here -->
     <div id="playlist-dashboard"></div>
     <div id="current-username" data-username="{{ username }}"></div>
     <script>
@@ -136,7 +144,7 @@
 
     <!-- Load your component -->
     <script type="text/babel" src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    
+
     <!-- Initialize after loading -->
     <script type="text/babel">
         // Make selected year available globally
