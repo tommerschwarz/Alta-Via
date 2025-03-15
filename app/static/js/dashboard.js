@@ -225,6 +225,8 @@ window.PlaylistDashboard = () => {
 
 
     // Remove one of the fetch effects and keep just this one
+    // Update your API fetch in dashboard.js to handle the new response format
+
     React.useEffect(() => {
         console.log("Starting data fetch");
         setIsLoading(true);
@@ -240,7 +242,44 @@ window.PlaylistDashboard = () => {
             return response.json();
         })
         .then(data => {
-            if (Array.isArray(data) && data.length > 0) {
+            // Check if we're getting the new response format
+            if (data.playlists && Array.isArray(data.playlists)) {
+                // New format - handle additional properties
+                console.log("Received new API response format");
+                console.log("API provided user_playlist_id:", data.user_playlist_id);
+                
+                // Update the window object with these values in case they weren't set
+                if (data.user_playlist_id) {
+                    window.userPlaylistId = data.user_playlist_id;
+                    console.log("Updated window.userPlaylistId from API:", window.userPlaylistId);
+                }
+                
+                // Set total first
+                setTotalPlaylists(data.playlists.length);
+                
+                // Function to add playlists with a delay
+                const addPlaylist = (index) => {
+                    if (index >= data.playlists.length) {
+                        setIsLoading(false);
+                        return;
+                    }
+                    
+                    // Force a state update for each playlist
+                    setPlaylistData(prevData => {
+                        const newData = [...prevData, data.playlists[index]];
+                        console.log(`Loaded ${newData.length} of ${data.playlists.length} playlists`);
+                        return newData;
+                    });
+                    
+                    setTimeout(() => addPlaylist(index + 1), 100);
+                };
+                
+                // Start adding playlists
+                setTimeout(() => addPlaylist(0), 100);
+            } else if (Array.isArray(data) && data.length > 0) {
+                // Old format - just an array of playlists
+                console.log("Received old API response format (array of playlists)");
+                
                 // Set total first
                 setTotalPlaylists(data.length);
                 
@@ -390,34 +429,21 @@ window.PlaylistDashboard = () => {
             marker: {
                 size: 15,
                 color: playlistData.map((p, index) => {
-                    // Log the playlist being processed
-                    console.log(`Processing playlist: ${p.name}, ID: ${p.playlist_id}`);
-                    
-                    // Get current logged-in username and selected year from window
-                    const currentUsername = window.currentUsername || '';
-                    const selectedYear = window.selectedYear || '';
+                    // Get user playlist ID from window object or session
                     const userPlaylistId = window.userPlaylistId || '';
                     
-                    console.log(`Current user: ${currentUsername}, Year: ${selectedYear}, ID: ${userPlaylistId}`);
+                    // Log what we're checking
+                    console.log(`Checking playlist: ${p.name} (ID: ${p.playlist_id})`);
+                    console.log(`User's playlist ID should be: ${userPlaylistId}`);
                     
-                    // STRICT MATCHING for user's playlist - this is the key change
-                    // We now check multiple specific conditions to identify the user's playlist
-                    const isUserPlaylist = (
-                        // Check if this is the user's playlist by ID (most reliable method)
-                        (userPlaylistId && p.playlist_id === userPlaylistId) ||
-                        
-                        // Exact string match including case sensitivity
-                        (p.name === `${currentUsername} in ${selectedYear}`) ||
-                        
-                        // Check display_name if it exists
-                        (p.display_name === `${currentUsername} in ${selectedYear}`)
-                    );
+                    // STRICT ID MATCHING - this is now our primary identification method
+                    const isUserPlaylist = (userPlaylistId && p.playlist_id === userPlaylistId);
                     
                     if (isUserPlaylist) {
-                        console.log(`✓ MATCH - This is user's playlist: ${p.name}`);
+                        console.log(`✓ ID MATCH - This is user's playlist: ${p.name} (ID: ${p.playlist_id})`);
                         return '#cb6d51';  // Terra cotta for user's playlist
                     } else {
-                        console.log(`✗ NOT MATCH - Not user's playlist: ${p.name}`);
+                        console.log(`✗ NOT A MATCH - Not user's playlist: ${p.name} (ID: ${p.playlist_id})`);
                     }
                     
                     // If it's the closest playlist

@@ -44,12 +44,21 @@
 
     <!-- Load your component -->
     <script type="text/babel" src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    
-    <!-- Initialize after loading -->
-    <script type="text/babel">
-        // Make selected year available globally
-        window.selectedYear = "{{ session.get('selected_year', '') }}";
+
+    <script>
+        // Store the user information as global variables
+        window.currentUsername = "{{ username }}";
+        window.selectedYear = "{{ selected_year }}";
+        window.userPlaylistId = "{{ user_playlist_id }}";
         
+        // Log these values to confirm they're correctly set
+        console.log("%c== USER PLAYLIST INFO ==", "background: #333; color: #fff; padding: 4px 8px;");
+        console.log("Username:", window.currentUsername);
+        console.log("Selected Year:", window.selectedYear);
+        console.log("User Playlist ID:", window.userPlaylistId);
+    </script>
+
+    <script type="text/babel">
         // Wait for component to be available
         setTimeout(() => {
             const container = document.getElementById('playlist-dashboard');

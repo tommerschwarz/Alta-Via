@@ -35,12 +35,12 @@ def index():
     selected_year = session.get('selected_year')
     username = session.get('display_name', '')
     
-    # Add this section to pass the user's playlist ID to the frontend
-    user_playlist_id = None
-    wrapped_playlist_map = session.get('wrapped_playlist_map', {})
-    if selected_year in wrapped_playlist_map:
-        user_playlist_id = wrapped_playlist_map[selected_year]['id']
-        
+    # Get the user's playlist ID directly from session where we stored it
+    user_playlist_id = session.get('user_playlist_id', '')
+    
+    # Log exactly what we're passing to the template
+    logger.info(f"Passing to template - username: {username}, year: {selected_year}, playlist ID: {user_playlist_id}")
+    
     return render_template('index.html', 
                           selected_year=selected_year, 
                           username=username,
@@ -161,6 +161,10 @@ def callback():
         
         # Store the playlist map in session for later use
         session['wrapped_playlist_map'] = wrapped_playlist_map
+
+        if wrapped_playlist_map:
+            logger.info(f"Storing wrapped_playlist_map in session: {wrapped_playlist_map}")
+            session['wrapped_playlist_map'] = wrapped_playlist_map
         
         logger.info(f"Found wrapped playlists for years: {available_years}")
         
@@ -181,6 +185,15 @@ def select_year():
     year = request.form.get('year')
     if year:
         session['selected_year'] = year
+        
+        # Add this: get and store the playlist ID for this year
+        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+        if year in wrapped_playlist_map:
+            session['user_playlist_id'] = wrapped_playlist_map[year]['id']
+            logger.info(f"Set user_playlist_id in session: {session['user_playlist_id']}")
+        else:
+            logger.warning(f"No playlist found for year {year} in wrapped_playlist_map")
+            
     return redirect(url_for('main.index'))
 
 @routes.route('/api/playlist-metrics')
@@ -203,8 +216,10 @@ def get_playlist_metrics():
         
         logger.info(f"Current user: {display_username} ({user_id}), selected year: {selected_year}")
         
-        # Get the user's playlist ID if available in the session
-        user_playlist_id = None
+        # Get the user's playlist ID directly from session
+        user_playlist_id = session.get('user_playlist_id', '')
+        logger.info(f"User's playlist ID from session: {user_playlist_id}")
+
         wrapped_playlist_map = session.get('wrapped_playlist_map', {})
         if selected_year in wrapped_playlist_map:
             user_playlist_id = wrapped_playlist_map[selected_year]['id']
@@ -382,7 +397,14 @@ def get_playlist_metrics():
         # Log what we're returning
         logger.info(f"Returning {len(all_stored_playlists)} playlists")
 
-        return jsonify(all_stored_playlists)
+        response_data = {
+            'playlists': all_stored_playlists,
+            'user_playlist_id': user_playlist_id,
+            'username': display_username,
+            'selected_year': selected_year
+        }
+
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error in get_playlist_metrics: {str(e)}")
