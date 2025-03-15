@@ -32,19 +32,44 @@ routes = Blueprint('main', __name__)
 @routes.route('/')
 def index():
     """Serve the main page"""
+    logger.info("Index route called with session keys: %s", list(session.keys()))
+    
+    # If user is authenticated with the API token
+    if 'token_info' in session:
+        
+        # If there's no selected year yet
+        if 'selected_year' not in session:
+            
+            # Check if we've already determined if they have playlists
+            has_wrapped = session.get('has_wrapped_playlists')
+            
+            # If we know they have playlists, send to year selection
+            # But only if we haven't just come from there (prevent loops)
+            if has_wrapped and not session.get('from_callback'):
+                logger.info("User has wrapped playlists but no year selected, redirecting to year selection")
+                return redirect(url_for('main.year_select'))
+                
+            # If we know they have NO playlists, render index but with a message
+            elif has_wrapped is False:
+                logger.info("User has NO wrapped playlists, showing empty state")
+                return render_template('index.html', 
+                                      selected_year=None, 
+                                      username=session.get('display_name', ''),
+                                      user_playlist_id='',
+                                      no_playlists=True)
+    
+    # Regular index view with any selected year
     selected_year = session.get('selected_year')
     username = session.get('display_name', '')
-    
-    # Get the user's playlist ID directly from session where we stored it
     user_playlist_id = session.get('user_playlist_id', '')
     
-    # Log exactly what we're passing to the template
-    logger.info(f"Passing to template - username: {username}, year: {selected_year}, playlist ID: {user_playlist_id}")
+    logger.info(f"Rendering index with: username={username}, year={selected_year}, ID={user_playlist_id}")
     
     return render_template('index.html', 
                           selected_year=selected_year, 
                           username=username,
-                          user_playlist_id=user_playlist_id)
+                          user_playlist_id=user_playlist_id,
+                          no_playlists=False)
 
 @routes.route('/login')
 def login():
@@ -55,7 +80,7 @@ def login():
 @routes.route('/callback')
 def callback():
     """Handle the Spotify OAuth callback"""
-
+    # Clear session first to avoid old data persisting
     for key in list(session.keys()):
         if key != 'csrf_token':  # Preserve CSRF token if using Flask-WTF
             session.pop(key)
@@ -165,17 +190,51 @@ def callback():
         logger.info(f"Found wrapped playlists for years: {available_years}")
         logger.info(f"Final wrapped_playlist_map: {wrapped_playlist_map}")
         
+        # After determining available_years and wrapped_playlist_map:
+        session['has_wrapped_playlists'] = len(available_years) > 0
+        session['wrapped_playlist_map'] = wrapped_playlist_map
+        session['from_callback'] = True  # Mark that we just came from callback
+        
+        logger.info(f"Found {len(available_years)} wrapped playlists: {available_years}")
+        
+        # If no playlists found, go to index with no_playlists flag
         if not available_years:
+            logger.info("No wrapped playlists found, redirecting to index with no_playlists flag")
             flash("No wrapped playlists found in your account.")
             return redirect(url_for('main.index'))
             
-        return render_template('year_select.html', 
-                             available_years=sorted(available_years, reverse=True),
-                             username=user_info['display_name'])
+        # If playlists found, go to year selection
+        return redirect(url_for('main.year_select'))
         
     except Exception as e:
         logger.error(f"Error in callback: {str(e)}")
         return redirect(url_for('main.index'))
+
+# Update the index route to respect the has_wrapped_playlists flag
+@routes.route('/')
+def index():
+    """Serve the main page"""
+    # If user is authenticated but has no selected year,
+    # and we know they have wrapped playlists,
+    # redirect to year selection
+    if ('token_info' in session and 
+        'selected_year' not in session and 
+        session.get('has_wrapped_playlists', False)):
+        return redirect(url_for('main.callback'))
+        
+    selected_year = session.get('selected_year')
+    username = session.get('display_name', '')
+    
+    # Get the user's playlist ID directly from session where we stored it
+    user_playlist_id = session.get('user_playlist_id', '')
+    
+    # Log exactly what we're passing to the template
+    logger.info(f"Passing to template - username: {username}, year: {selected_year}, playlist ID: {user_playlist_id}")
+    
+    return render_template('index.html', 
+                          selected_year=selected_year, 
+                          username=username,
+                          user_playlist_id=user_playlist_id)
 
 @routes.route('/select-year', methods=['POST'])
 def select_year():
@@ -492,3 +551,28 @@ def send_static(path):
 def logout():
     session.clear()  # Clear all session data
     return redirect(url_for('main.index'))
+
+@routes.route('/year-select')
+def year_select():
+    """Show year selection page"""
+    logger.info("Year selection page requested")
+    
+    if 'token_info' not in session:
+        logger.warning("Year selection requested but not logged in, redirecting to login")
+        return redirect(url_for('main.login'))
+        
+    available_years = []
+    wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+    
+    # Get years from wrapped_playlist_map
+    for year, playlist in wrapped_playlist_map.items():
+        if year not in available_years:
+            available_years.append(year)
+    
+    # Mark that we didn't just come from callback
+    session['from_callback'] = False
+    
+    logger.info(f"Rendering year_select with {len(available_years)} years available")
+    return render_template('year_select.html', 
+                         available_years=sorted(available_years, reverse=True),
+                         username=session.get('display_name', ''))
