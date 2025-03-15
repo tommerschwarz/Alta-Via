@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MultiWrapped</title>
+    <title>AltaVia</title>
     
     <!-- React and ReactDOM -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -21,7 +21,7 @@
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
 </head>
 <body>
-        <div class="container" style="
+    <div class="container" style="
         max-width: 600px;
         margin: 60px auto;
         padding: 40px;
@@ -44,14 +44,9 @@
                 color: #666;
                 font-size: 16px;
                 line-height: 1.5;
-            ">Select a year to view your wrapped playlist visualization:</p>
+            ">Select a year to view your wrapped playlist:</p>
             
-            <form action="{{ url_for('main.select_year') }}" method="POST" style="
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 20px;
-            ">
+            <form action="{{ url_for('main.select_year') }}" method="POST" id="yearForm">
                 <select name="year" style="
                     width: 240px;
                     padding: 12px 16px;
@@ -63,37 +58,122 @@
                     cursor: pointer;
                     outline: none;
                     transition: border-color 0.2s;
-                " onchange="this.form.submit()">
+                ">
                     <option value="">Select a year...</option>
                     {% for year in available_years %}
                         <option value="{{ year }}">Wrapped {{ year }}</option>
                     {% endfor %}
                 </select>
             </form>
+    
+            <!-- Loading message (hidden by default) -->
+            <div id="loadingMessage" style="
+                display: none;
+                margin-top: 20px;
+                color: #633514;
+                font-family: 'Georgia', serif;
+            ">
+                <div style="
+                    font-size: 18px;
+                    margin-bottom: 15px;
+                ">Loading your playlist data...</div>
+                <div style="
+                    width: 40px;
+                    height: 40px;
+                    border: 3px solid #c9b687;
+                    border-top-color: #633514;
+                    border-radius: 50%;
+                    margin: 0 auto;
+                    animation: spin 1s linear infinite;
+                "></div>
+            </div>
+    
+            <style>
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+            </style>
+    
+            <script>
+                document.querySelector('select[name="year"]').addEventListener('change', function() {
+                    // Check if a valid option is selected (not the default)
+                    if (this.value) {
+                        document.getElementById('loadingMessage').style.display = 'block';
+                        document.getElementById('yearForm').submit();
+                    }
+                });
+            </script>
         {% else %}
             <div style="
-                padding: 20px;
+                padding: 30px;
                 background-color: rgba(99, 53, 20, 0.1);
                 border-radius: 8px;
                 margin: 30px 0;
+                text-align: left;
             ">
+                <h3 style="
+                    color: #633514;
+                    margin-top: 0;
+                    margin-bottom: 16px;
+                    font-size: 18px;
+                    font-weight: 600;
+                ">No wrapped playlists found</h3>
+                
                 <p style="
                     color: #633514;
-                    margin: 0;
+                    margin-bottom: 16px;
                     font-size: 16px;
-                ">No wrapped playlists found in your Spotify account. Make sure your playlists follow the naming format: "username in YYYY"</p>
+                    line-height: 1.6;
+                ">We couldn't detect any wrapped playlists in your Spotify account. There are a few ways to make your playlists work with Alta Via:</p>
+                
+                <ol style="
+                    color: #633514;
+                    font-size: 16px;
+                    line-height: 1.6;
+                    margin-bottom: 20px;
+                    padding-left: 24px;
+                ">
+                    <li>Rename a playlist to follow the format "<strong>{{ username }} in YYYY</strong>" (e.g., "{{ username }} in 2024")</li>
+                    <li>Use Spotify's official "Your Top Songs YYYY" playlists if you have them</li>
+                    <li>Create a playlist with exactly 100 tracks with the year in the name (e.g., "My Favorites 2024")</li>
+                </ol>
+                
+                <p style="
+                    color: #633514;
+                    margin-bottom: 0;
+                    font-size: 16px;
+                    font-style: italic;
+                ">After renaming/creating your playlists in Spotify, refresh this page to try again.</p>
             </div>
             
-            <a href="{{ url_for('main.index') }}" style="
-                display: inline-block;
-                padding: 12px 24px;
-                background-color: #633514;
-                color: white;
-                text-decoration: none;
-                border-radius: 8px;
-                font-size: 16px;
-                transition: background-color 0.2s;
-            ">Back to Home</a>
+            <div style="
+                display: flex;
+                justify-content: center;
+                gap: 16px;
+            ">
+                <a href="{{ url_for('main.index') }}" style="
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background-color: #633514;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    transition: background-color 0.2s;
+                ">Back to Home</a>
+                
+                <a href="javascript:location.reload();" style="
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background-color: white;
+                    color: #633514;
+                    text-decoration: none;
+                    border: 2px solid #633514;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    transition: all 0.2s;
+                ">Refresh & Try Again</a>
+            </div>
         {% endif %}
     </div>
 

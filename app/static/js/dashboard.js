@@ -113,7 +113,7 @@ window.PlaylistDashboard = () => {
                 }, [
                     React.createElement('li', null, 'Login with your Spotify account'),
                     React.createElement('li', null, 'Select the Wrapped playlists you want to compare'),
-                    React.createElement('li', null, 'Explore visualizations of your music tastes compared to others')
+                    React.createElement('li', null, 'Explore visualizations of your music taste compared to others')
                 ]),
 
                 React.createElement('p', {
@@ -448,7 +448,7 @@ window.PlaylistDashboard = () => {
                     
                     // If it's the closest playlist
                     if (closestPlaylist && p.playlist_id === closestPlaylist.playlist_id) {
-                        return '#e6d7b8';  // Light beige for closest
+                        return '#597b8c';  // dark teal for closest
                     }
                     
                     // If it's the farthest playlist
@@ -503,7 +503,7 @@ window.PlaylistDashboard = () => {
                     y: [null],
                     z: [null],
                     name: 'Most Similar Playlist',
-                    marker: { color: '#e6d7b8', size: 10 },
+                    marker: { color: '#597b8c', size: 10 },
                     showlegend: true,
                     hoverinfo: 'none'
                 });
