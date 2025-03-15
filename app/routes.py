@@ -75,47 +75,36 @@ def callback():
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
         user_id = user_info['id']
-        session['user_id'] = user_info['id']
-        
-        # Check for available wrapped playlists
-        available_years = []
-        playlists = sp.current_user_playlists(limit=50)
-
-        user_info = sp.current_user()
         logger.info(f"Authenticated user: {user_info['display_name']} ({user_info['id']})")
         session['user_id'] = user_info['id']
         session['display_name'] = user_info['display_name']
-
-        # Get user info and store in session
-        sp = spotipy.Spotify(auth=token_info['access_token'])
-        user_info = sp.current_user()
-        user_id = user_info['id']
-        logger.info(f"Authenticated user: {user_info['display_name']} ({user_id})")
-        session['user_id'] = user_info['id']
         
         # Enhanced playlist detection
-        available_years = []
         playlists = sp.current_user_playlists(limit=50)
         
         # Log all playlists for debugging
         logger.info(f"User has {len(playlists['items'])} playlists:")
         wrapped_playlist_map = {}  # Map years to playlist objects
         
+        # First, find all potential wrapped playlists with their detection method
+        potential_wrapped = []
+        
         for playlist in playlists['items']:
             logger.info(f"Playlist: {playlist['name']} (ID: {playlist['id']})")
             
-            # Check for custom named playlists first (unchanged)
+            # Check for custom named playlists first
             wrapped_pattern = f"{user_id} in "
             if wrapped_pattern in playlist['name']:
                 try:
                     year = playlist['name'].replace(wrapped_pattern, '')
                     if year.isdigit() and len(year) == 4:  # Ensure it's a valid year
-                        available_years.append(year)
-                        wrapped_playlist_map[year] = {
+                        potential_wrapped.append({
+                            'year': year,
                             'id': playlist['id'], 
                             'name': playlist['name'],
-                            'type': 'custom'
-                        }
+                            'type': 'custom',  # Custom naming has highest priority
+                            'priority': 3
+                        })
                 except Exception as e:
                     logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
             
@@ -125,12 +114,13 @@ def callback():
                     year_match = re.search(r'Your Top Songs (\d{4})', playlist['name'])
                     if year_match:
                         year = year_match.group(1)
-                        available_years.append(year)
-                        wrapped_playlist_map[year] = {
+                        potential_wrapped.append({
+                            'year': year,
                             'id': playlist['id'], 
                             'name': playlist['name'],
-                            'type': 'official'
-                        }
+                            'type': 'official',  # Official has medium priority
+                            'priority': 2
+                        })
                 except Exception as e:
                     logger.error(f"Error parsing year from playlist {playlist['name']}: {str(e)}")
             
@@ -148,25 +138,32 @@ def callback():
                         logger.info(f"Potential wrapped playlist: {playlist['name']} - Year: {potential_year}, Tracks: {track_count}")
                         
                         if track_count == 100:
-                            # Only add if we don't already have this year from a more reliable source
-                            if potential_year not in wrapped_playlist_map:
-                                available_years.append(potential_year)
-                                wrapped_playlist_map[potential_year] = {
-                                    'id': playlist['id'], 
-                                    'name': playlist['name'],
-                                    'type': 'detected'
-                                }
+                            potential_wrapped.append({
+                                'year': potential_year,
+                                'id': playlist['id'], 
+                                'name': playlist['name'],
+                                'type': 'detected',  # Detected has lowest priority
+                                'priority': 1
+                            })
                 except Exception as e:
-                    logger.error(f"Error checking playlist {playlist['playlist_name']} as potential wrapped: {str(e)}")
+                    logger.error(f"Error checking playlist {playlist['name']} as potential wrapped: {str(e)}")
+        
+        # Group by year and select the highest priority playlist for each year
+        available_years = []
+        for wrapped in sorted(potential_wrapped, key=lambda x: (x['year'], -x['priority'])):
+            year = wrapped['year']
+            # Only add the year/playlist if we haven't already added this year
+            # or if we're replacing with a higher priority playlist
+            if year not in wrapped_playlist_map or wrapped['priority'] > wrapped_playlist_map[year]['priority']:
+                wrapped_playlist_map[year] = wrapped
+                if year not in available_years:
+                    available_years.append(year)
         
         # Store the playlist map in session for later use
         session['wrapped_playlist_map'] = wrapped_playlist_map
-
-        if wrapped_playlist_map:
-            logger.info(f"Storing wrapped_playlist_map in session: {wrapped_playlist_map}")
-            session['wrapped_playlist_map'] = wrapped_playlist_map
         
         logger.info(f"Found wrapped playlists for years: {available_years}")
+        logger.info(f"Final wrapped_playlist_map: {wrapped_playlist_map}")
         
         if not available_years:
             flash("No wrapped playlists found in your account.")

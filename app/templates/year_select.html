@@ -41,7 +41,7 @@
             ">
                 <option value="">Select a year...</option>
                 {% for year in available_years %}
-                    <option value="{{ year }}">{{ year }}</option>
+                    <option value="{{ year }}">Wrapped {{ year }}</option>
                 {% endfor %}
             </select>
         </form>
@@ -76,8 +76,11 @@
 
         <script>
             document.querySelector('select[name="year"]').addEventListener('change', function() {
-                document.getElementById('loadingMessage').style.display = 'block';
-                document.getElementById('yearForm').submit();
+                // Check if a valid option is selected (not the default)
+                if (this.value) {
+                    document.getElementById('loadingMessage').style.display = 'block';
+                    document.getElementById('yearForm').submit();
+                }
             });
         </script>
     {% else %}
