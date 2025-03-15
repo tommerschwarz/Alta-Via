@@ -159,6 +159,8 @@ def callback():
         if not available_years:
             logger.info("No wrapped playlists found, redirecting to index with no_playlists flag")
             flash("No wrapped playlists found in your account.")
+            session['has_wrapped_playlists'] = False  # Explicitly set to False
+            flash("No wrapped playlists found in your account.")
             return redirect(url_for('main.index'))
             
         # If playlists found, go to year selection
@@ -168,31 +170,30 @@ def callback():
         logger.error(f"Error in callback: {str(e)}")
         return redirect(url_for('main.index'))
 
-# Update the index route to respect the has_wrapped_playlists flag
 @routes.route('/')
 def index():
     """Serve the main page"""
-    # If user is authenticated but has no selected year,
-    # and we know they have wrapped playlists,
-    # redirect to year selection
-    if ('token_info' in session and 
-        'selected_year' not in session and 
-        session.get('has_wrapped_playlists', False)):
-        return redirect(url_for('main.callback'))
-        
+    logger.info("Index route called with session keys: %s", list(session.keys()))
+    
     selected_year = session.get('selected_year')
     username = session.get('display_name', '')
-    
-    # Get the user's playlist ID directly from session where we stored it
     user_playlist_id = session.get('user_playlist_id', '')
     
-    # Log exactly what we're passing to the template
-    logger.info(f"Passing to template - username: {username}, year: {selected_year}, playlist ID: {user_playlist_id}")
+    # Check if user is authenticated but has no playlists
+    no_playlists = False
+    
+    # If user has token but no playlists were found in the callback, show the no playlists message
+    if 'token_info' in session and session.get('has_wrapped_playlists') is False:
+        no_playlists = True
+        logger.info("User is authenticated but has no playlists, showing no-playlists message")
+    
+    logger.info(f"Rendering index with: username={username}, year={selected_year}, ID={user_playlist_id}, no_playlists={no_playlists}")
     
     return render_template('index.html', 
                           selected_year=selected_year, 
                           username=username,
-                          user_playlist_id=user_playlist_id)
+                          user_playlist_id=user_playlist_id,
+                          no_playlists=no_playlists)
 
 @routes.route('/select-year', methods=['POST'])
 def select_year():
