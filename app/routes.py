@@ -29,48 +29,6 @@ GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSf69_6SX1lsPMIsH3a9X
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1v6pbUgaIO8NRN-rCA-NJdofXHybPwPMGFowG6SHJyRc/export?format=csv"  # Simplified sheet URL
 routes = Blueprint('main', __name__)
 
-@routes.route('/')
-def index():
-    """Serve the main page"""
-    logger.info("Index route called with session keys: %s", list(session.keys()))
-    
-    # If user is authenticated with the API token
-    if 'token_info' in session:
-        
-        # If there's no selected year yet
-        if 'selected_year' not in session:
-            
-            # Check if we've already determined if they have playlists
-            has_wrapped = session.get('has_wrapped_playlists')
-            
-            # If we know they have playlists, send to year selection
-            # But only if we haven't just come from there (prevent loops)
-            if has_wrapped and not session.get('from_callback'):
-                logger.info("User has wrapped playlists but no year selected, redirecting to year selection")
-                return redirect(url_for('main.year_select'))
-                
-            # If we know they have NO playlists, render index but with a message
-            elif has_wrapped is False:
-                logger.info("User has NO wrapped playlists, showing empty state")
-                return render_template('index.html', 
-                                      selected_year=None, 
-                                      username=session.get('display_name', ''),
-                                      user_playlist_id='',
-                                      no_playlists=True)
-    
-    # Regular index view with any selected year
-    selected_year = session.get('selected_year')
-    username = session.get('display_name', '')
-    user_playlist_id = session.get('user_playlist_id', '')
-    
-    logger.info(f"Rendering index with: username={username}, year={selected_year}, ID={user_playlist_id}")
-    
-    return render_template('index.html', 
-                          selected_year=selected_year, 
-                          username=username,
-                          user_playlist_id=user_playlist_id,
-                          no_playlists=False)
-
 @routes.route('/login')
 def login():
     sp_oauth = spotify_utils.get_spotify_oauth(current_app)
