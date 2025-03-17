@@ -575,9 +575,24 @@ window.PlaylistDashboard = () => {
                 
                 // Handle clicks on any point in any trace
                 const clickedPoint = data.points[0];
+
+                const pointIndex = clickedPoint.pointNumber;
+                const pointName = clickedPoint.text;
+                
+                if (!pointName) return;
+                
+                console.log("Regular point clicked:", pointName);
+                
+                const newSelection = selectedPlaylists.includes(pointName) 
+                    ? selectedPlaylists.filter(p => p !== pointName)
+                    : selectedPlaylists.length < 2 
+                        ? [...selectedPlaylists, pointName]
+                        : [selectedPlaylists[1], pointName];
+                
+                setSelectedPlaylists(newSelection);
                 
                 // If clicking a point in the main data series
-                if (clickedPoint.curveNumber === 0) {
+                /*'''if (clickedPoint.curveNumber === 0) {
                     const pointIndex = clickedPoint.pointNumber;
                     const pointName = clickedPoint.text;
                     
@@ -623,7 +638,7 @@ window.PlaylistDashboard = () => {
                         
                         setSelectedPlaylists(newSelection);
                     }
-                }
+                }'''/*/
             });
         });
 
