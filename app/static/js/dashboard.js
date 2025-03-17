@@ -492,41 +492,34 @@ window.PlaylistDashboard = () => {
                     title: 'Average Popularity',
                     range: [0, 100],
                     titlefont: { size: 12, family: "'Georgia', serif" },
-                    // Critical for better rendering:
-                    showspikes: false,
-                    spikesides: false,
-                    showbackground: true,
-                    backgroundcolor: 'rgba(242, 240, 237, 0.3)'  // Light background for better contrast
+                    showgrid: true,
+                    gridcolor: 'rgb(230, 230, 230)',
+                    backgroundcolor: '#F2F0ED'  // Match your page background
                 },
                 yaxis: {
                     title: 'Number of Genres',
                     autorange: true,
                     titlefont: { size: 12, family: "'Georgia', serif" },
-                    showspikes: false,
-                    spikesides: false,
-                    showbackground: true,
-                    backgroundcolor: 'rgba(242, 240, 237, 0.3)'
+                    showgrid: true,
+                    gridcolor: 'rgb(230, 230, 230)',
+                    backgroundcolor: '#F2F0ED'  // Match your page background
                 },
                 zaxis: {
                     title: 'Average Year',
                     autorange: true,
                     titlefont: { size: 12, family: "'Georgia', serif" },
                     tickformat: 'd',
-                    showspikes: false,
-                    spikesides: false,
-                    showbackground: true,
-                    backgroundcolor: 'rgba(242, 240, 237, 0.3)'
+                    showgrid: true,
+                    gridcolor: 'rgb(230, 230, 230)',
+                    backgroundcolor: '#F2F0ED'  // Match your page background
                 },
                 camera: currentCamera || {
-                    eye: {x: 1.25, y: 1.25, z: 1.25},  // Default camera position
-                    center: {x: 0, y: 0, z: 0},         // Looking at center
-                    up: {x: 0, y: 0, z: 1}              // "Up" direction
+                    eye: {x: 1.5, y: 1.5, z: 1},
+                    center: {x: 0, y: 0, z: 0},
                 },
-                aspectratio: { x: 1, y: 1, z: 0.7 },     // Slightly compressed z-axis for better view
-                
-                // This improves text and marker rendering:
-                dragmode: 'turntable',                  // Different drag mode
-                hovermode: 'closest'
+                // This is critical for the background color
+                bgcolor: '#F2F0ED',  // Scene background color
+                dragmode: 'orbit',
             },
             margin: { l: 0, r: 0, b: 0, t: 30 },
             showlegend: userPlaylist !== null,
@@ -570,7 +563,7 @@ window.PlaylistDashboard = () => {
             displaylogo: false,
             doubleClick: 'reset',                      // Reset view on double click
         };
-        
+
         // Create the plot
         Plotly.newPlot(plotRef.current, traces, layout, config).then(() => {
             // Add click handler with immediate visual update
