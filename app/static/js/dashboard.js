@@ -313,74 +313,48 @@ window.PlaylistDashboard = () => {
         });
     }, []);
 
-    React.useEffect(() => {
-        // Don't auto-select anything - just leave it empty until user clicks
-        if (playlistData.length > 0 && selectedPlaylists.length === 0) {
-            // Initialize with empty selection, so the user has to click to select
-            setSelectedPlaylists([]);
-        }
-    }, [playlistData]);
+    // This is a comprehensive solution for the 3D scatter plot with proper selection behavior
 
-
-    // Add a new effect to color the closest and farthest playlists
-    // First, modify the 3D scatter plot creation effect:
     React.useEffect(() => {
         if (!plotRef.current || !playlistData || playlistData.length === 0) return;
         
         // Store current camera position if it exists
         const currentCamera = plotRef.current.layout?.scene?.camera;
 
-        // Add diagnostic logging for all playlists
-        console.log("All playlists data:", playlistData.map(p => ({
-            name: p.name,
-            playlist_name: p.playlist_name,
-            avgYear: p.avgYear
-        })));
-
-    
-        // Find user's selected year playlist
+        // Get current user info
         const currentUsername = window.currentUsername || '';
         const selectedYear = window.selectedYear || '';
+        const userPlaylistId = window.userPlaylistId || '';
 
-        console.log(`!!! currentUsername IS: ${currentUsername}`);
-        console.log(`!!! userPlaylist IS: ${userPlaylist}`);
-
-        // Find the user's playlist with clear logging
-        const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
-        const userPlaylist = playlistData.find(p => p.name === exactUserPlaylistName);
-
-        console.log(`!!! exactUserPlaylistName IS: ${exactUserPlaylistName}`);
-        console.log(`!!! userPlaylist IS: ${userPlaylist}`);
+        // Find user's selected year playlist
+        const userPlaylist = playlistData.find(p => 
+            (userPlaylistId && p.playlist_id === userPlaylistId) || 
+            p.name === `${currentUsername} in ${selectedYear}` ||
+            p.is_user_playlist === true
+        );
 
         if (userPlaylist) {
-            console.log(`Found user playlist: ${userPlaylist.name}`);
+            console.log(`Found user playlist: ${userPlaylist.name} (ID: ${userPlaylist.playlist_id})`);
         } else {
-            console.log(`No exact match found for "${exactUserPlaylistName}"`);
-            // Log all playlist names for debugging
-            console.log("Available playlists:", playlistData.map(p => p.name));
+            console.log(`No user playlist found`);
         }
                 
-        // If we have the user's playlist, calculate distances to all others
+        // Calculate distances and find closest/farthest
         let closestPlaylist = null;
         let farthestPlaylist = null;
 
         const playlistLabels = playlistData.map(p => {
-            // For display purposes, prefer playlist_name which is the original name
-            // This is the key fix - we need to generate consistent labels
             return p.playlist_name || p.name || 'Unnamed Playlist';
         });
         
-        // In the second plot effect where distances are calculated
-        if (userPlaylist && playlistData.length > 2) {
-            // Make sure userPlaylist isn't included in distance calculations
+        if (userPlaylist && playlistData.length > 1) {
+            // Find playlists to compare (excluding user's playlist)
             const playlistsToCompare = playlistData.filter(p => 
-                p.name !== userPlaylist.name && 
                 p.playlist_id !== userPlaylist.playlist_id
             );
             
-            // Only proceed if we have playlists to compare
             if (playlistsToCompare.length > 0) {
-                // Get the ranges for scaling
+                // Calculate ranges for normalization
                 const popularityValues = playlistData.map(p => p.avgPopularity);
                 const genreValues = playlistData.map(p => p.genreCount);
                 const yearValues = playlistData.map(p => p.avgYear);
@@ -389,37 +363,56 @@ window.PlaylistDashboard = () => {
                 const genreRange = Math.max(...genreValues) - Math.min(...genreValues) || 1;
                 const yearRange = Math.max(...yearValues) - Math.min(...yearValues) || 1;
                 
-                // Calculate scaled distances with logging
+                // Calculate distances
                 const playlistsWithDistance = playlistsToCompare.map(p => {
                     const dx = (p.avgPopularity - userPlaylist.avgPopularity) / popularityRange;
                     const dy = (p.genreCount - userPlaylist.genreCount) / genreRange;
                     const dz = (p.avgYear - userPlaylist.avgYear) / yearRange;
                     const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
-                    console.log(`Distance from ${userPlaylist.name} to ${p.name}: ${distance}`);
                     return { ...p, distance };
                 });
                     
-                // Sort by distance
                 playlistsWithDistance.sort((a, b) => a.distance - b.distance);
                 
-                // Find closest and farthest
                 if (playlistsWithDistance.length > 0) {
                     closestPlaylist = playlistsWithDistance[0];
                     farthestPlaylist = playlistsWithDistance[playlistsWithDistance.length - 1];
-                    console.log(`Closest playlist: ${closestPlaylist.name} (${closestPlaylist.distance})`);
-                    console.log(`Farthest playlist: ${farthestPlaylist.name} (${farthestPlaylist.distance})`);
                 }
             }
         }
         
-        // Create the main data trace
+        // Helper function to determine point colors
+        const getPointColor = (playlist, isSelected) => {
+            // Always prioritize selection state
+            if (isSelected) {
+                return '#0f5c2e'; // Green selection color
+            }
+            
+            // Special playlist types (if not selected)
+            if (userPlaylist && playlist.playlist_id === userPlaylist.playlist_id) {
+                return '#cb6d51'; // Terra cotta for user's playlist
+            }
+            
+            if (closestPlaylist && playlist.playlist_id === closestPlaylist.playlist_id) {
+                return '#597b8c'; // Teal for closest playlist
+            }
+            
+            if (farthestPlaylist && playlist.playlist_id === farthestPlaylist.playlist_id) {
+                return '#d5d5ce'; // Light gray for farthest playlist
+            }
+            
+            // Default color
+            return '#c9b687'; // Beige for regular playlists
+        };
+        
+        // Create data trace with all playlists, with colors determined by our function
         const dataSeries = {
             type: 'scatter3d',
             mode: 'markers+text',
             x: playlistData.map(p => p.avgPopularity),
             y: playlistData.map(p => p.genreCount),
             z: playlistData.map(p => p.avgYear),
-            text: playlistLabels, // Use consistent labels for display
+            text: playlistLabels,
             textfont: {
                 size: 14, 
                 family: 'Inter, sans-serif',
@@ -428,39 +421,9 @@ window.PlaylistDashboard = () => {
             textposition: 'top',
             marker: {
                 size: 15,
-                color: playlistData.map((p, index) => {
-                    // Get user playlist ID from window object or session
-                    const userPlaylistId = window.userPlaylistId || '';
-                    
-                    // SPECIAL PLAYLIST CHECK - User's playlist
-                    if (userPlaylistId && p.playlist_id === userPlaylistId) {
-                        // Add a custom property to identify this as the user's playlist
-                        playlistData[index].isUserPlaylist = true;
-                        return '#cb6d51';  // Terra cotta for user's playlist
-                    }
-                    
-                    // SPECIAL PLAYLIST CHECK - Closest playlist
-                    if (closestPlaylist && p.playlist_id === closestPlaylist.playlist_id) {
-                        // Add a custom property to identify this as the closest playlist
-                        playlistData[index].isClosestPlaylist = true;
-                        return '#597b8c';  // Teal for closest
-                    }
-                    
-                    // SPECIAL PLAYLIST CHECK - Farthest playlist
-                    if (farthestPlaylist && p.playlist_id === farthestPlaylist.playlist_id) {
-                        // Add a custom property to identify this as the farthest playlist
-                        playlistData[index].isFarthestPlaylist = true;
-                        return '#d5d5ce';  // Light gray for farthest
-                    }
-                    
-                    // If it's selected
-                    if (selectedPlaylists.includes(playlistLabels[index])) {
-                        return '#0f5c2e';  // Green for selected
-                    }
-                    
-                    // Default color
-                    return '#c9b687';  // Beige for other playlists
-                }),
+                color: playlistData.map((p, index) => 
+                    getPointColor(p, selectedPlaylists.includes(playlistLabels[index]))
+                ),
                 opacity: 0.8
             },
             hoverinfo: 'text',
@@ -485,7 +448,7 @@ window.PlaylistDashboard = () => {
                 x: [null],
                 y: [null],
                 z: [null],
-                name: 'Your Playlist', // Clear label that this is the user's playlist
+                name: 'Your Playlist',
                 marker: { color: '#cb6d51', size: 10 },
                 showlegend: true,
                 hoverinfo: 'none'
@@ -522,6 +485,7 @@ window.PlaylistDashboard = () => {
             }
         }
         
+        // Layout configuration
         const layout = {
             scene: {
                 xaxis: {
@@ -568,83 +532,51 @@ window.PlaylistDashboard = () => {
             displaylogo: false
         };
 
+        // Create the plot
         Plotly.newPlot(plotRef.current, traces, layout, config).then(() => {
-            // Add click handler
+            // Add click handler with immediate visual update
             plotRef.current.on('plotly_click', (data) => {
                 if (!data.points || data.points.length === 0) return;
                 
-                // Handle clicks on any point in any trace
-                const clickedPoint = data.points[0];
-
-                const pointIndex = clickedPoint.pointNumber;
-                const pointName = clickedPoint.text;
+                // Only handle clicks on the main data series (index 0)
+                if (data.points[0].curveNumber !== 0) return;
+                
+                const pointIndex = data.points[0].pointNumber;
+                const pointName = data.points[0].text;
                 
                 if (!pointName) return;
                 
-                console.log("Regular point clicked:", pointName);
+                console.log(`Point clicked: ${pointName} (index ${pointIndex})`);
                 
+                // Update selection state
                 const newSelection = selectedPlaylists.includes(pointName) 
                     ? selectedPlaylists.filter(p => p !== pointName)
                     : selectedPlaylists.length < 2 
                         ? [...selectedPlaylists, pointName]
                         : [selectedPlaylists[1], pointName];
                 
+                // Update React state
                 setSelectedPlaylists(newSelection);
                 
-                // If clicking a point in the main data series
-                /*'''if (clickedPoint.curveNumber === 0) {
-                    const pointIndex = clickedPoint.pointNumber;
-                    const pointName = clickedPoint.text;
-                    
-                    if (!pointName) return;
-                    
-                    console.log("Regular point clicked:", pointName);
-                    
-                    const newSelection = selectedPlaylists.includes(pointName) 
-                        ? selectedPlaylists.filter(p => p !== pointName)
-                        : selectedPlaylists.length < 2 
-                            ? [...selectedPlaylists, pointName]
-                            : [selectedPlaylists[1], pointName];
-                    
-                    setSelectedPlaylists(newSelection);
-                }
-                // If clicking on a legend item, find the corresponding playlist
-                else if (clickedPoint.curveNumber > 0) {
-                    // Legend items don't give us the text, so we need to determine which one was clicked
-                    let targetPlaylist = null;
-                    
-                    if (clickedPoint.curveNumber === 1 && userPlaylist) {
-                        // User's playlist legend was clicked
-                        targetPlaylist = playlistLabels[playlistData.findIndex(p => p.playlist_id === userPlaylist.playlist_id)];
-                        console.log("Your Playlist legend clicked:", targetPlaylist);
-                    }
-                    else if (clickedPoint.curveNumber === 2 && closestPlaylist) {
-                        // Closest playlist legend was clicked
-                        targetPlaylist = playlistLabels[playlistData.findIndex(p => p.playlist_id === closestPlaylist.playlist_id)];
-                        console.log("Most Similar Playlist legend clicked:", targetPlaylist);
-                    }
-                    else if (clickedPoint.curveNumber === 3 && farthestPlaylist) {
-                        // Farthest playlist legend was clicked
-                        targetPlaylist = playlistLabels[playlistData.findIndex(p => p.playlist_id === farthestPlaylist.playlist_id)];
-                        console.log("Most Different Playlist legend clicked:", targetPlaylist);
-                    }
-                    
-                    if (targetPlaylist) {
-                        const newSelection = selectedPlaylists.includes(targetPlaylist) 
-                            ? selectedPlaylists.filter(p => p !== targetPlaylist)
-                            : selectedPlaylists.length < 2 
-                                ? [...selectedPlaylists, targetPlaylist]
-                                : [selectedPlaylists[1], targetPlaylist];
-                        
-                        setSelectedPlaylists(newSelection);
-                    }
-                }'''/*/
+                // Force immediate update of all point colors
+                const updatedColors = playlistData.map((p, idx) => 
+                    getPointColor(p, newSelection.includes(playlistLabels[idx]))
+                );
+                
+                // Apply the color updates to the plot
+                Plotly.restyle(plotRef.current, {
+                    'marker.color': [updatedColors]
+                }, [0]);
             });
+            
+            // Prevent legend clicks from hiding traces
+            plotRef.current.on('plotly_legendclick', () => false);
         });
 
         return () => {
             if (plotRef.current && plotRef.current.removeAllListeners) {
                 plotRef.current.removeAllListeners('plotly_click');
+                plotRef.current.removeAllListeners('plotly_legendclick');
             }
         };
     }, [playlistData, selectedPlaylists]);
