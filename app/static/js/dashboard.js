@@ -431,6 +431,11 @@ window.PlaylistDashboard = () => {
                 color: playlistData.map((p, index) => {
                     // Get user playlist ID from window object or session
                     const userPlaylistId = window.userPlaylistId || '';
+
+                    // If it's selected
+                    if (selectedPlaylists.includes(playlistLabels[index])) {
+                        return '#0f5c2e';  // Green for selected
+                    }
                     
                     // SPECIAL PLAYLIST CHECK - User's playlist
                     if (userPlaylistId && p.playlist_id === userPlaylistId) {
@@ -451,11 +456,6 @@ window.PlaylistDashboard = () => {
                         // Add a custom property to identify this as the farthest playlist
                         playlistData[index].isFarthestPlaylist = true;
                         return '#d5d5ce';  // Light gray for farthest
-                    }
-                    
-                    // If it's selected
-                    if (selectedPlaylists.includes(playlistLabels[index])) {
-                        return '#0f5c2e';  // Green for selected
                     }
                     
                     // Default color
