@@ -93,7 +93,7 @@ window.PlaylistDashboard = () => {
                         marginBottom: '15px',
                         lineHeight: '1.6'
                     }
-                }, 'Alta Via is a tool that helps you dive into your Spotify Wrapped playlists.'),
+                }, 'Alta Via is a tool that compares your Spotify Wrapped playlists with others.'),
 
                 React.createElement('h3', {
                     style: {
@@ -112,6 +112,23 @@ window.PlaylistDashboard = () => {
                     }
                 }, [
                     React.createElement('li', null, 'Login with your Spotify account'),
+                    React.createElement('li', null, [
+                        'Make a copy of your Wrapped playlist (usually called "Your Top Songs <year>") into a new playlist called "<name> in <year>"',
+                        React.createElement('ul', {
+                          style: {
+                            marginTop: '8px',
+                            marginLeft: '20px'
+                          }
+                        }, [
+                          React.createElement('li', {
+                            style: {
+                              listStyleType: 'disc',
+                              fontSize: '14px',
+                              color: '#666'
+                            }
+                          }, 'Note: You may have to select all tracks in your "Your Top Songs <year>" playlist and copy them into your new playlist')
+                        ])
+                      ]),
                     React.createElement('li', null, 'Select the Wrapped playlists you want to compare'),
                     React.createElement('li', null, 'Explore visualizations of your music taste compared to others')
                 ]),
@@ -590,55 +607,6 @@ window.PlaylistDashboard = () => {
                         : [selectedPlaylists[1], pointName];
                 
                 setSelectedPlaylists(newSelection);
-                
-                // If clicking a point in the main data series
-                /*'''if (clickedPoint.curveNumber === 0) {
-                    const pointIndex = clickedPoint.pointNumber;
-                    const pointName = clickedPoint.text;
-                    
-                    if (!pointName) return;
-                    
-                    console.log("Regular point clicked:", pointName);
-                    
-                    const newSelection = selectedPlaylists.includes(pointName) 
-                        ? selectedPlaylists.filter(p => p !== pointName)
-                        : selectedPlaylists.length < 2 
-                            ? [...selectedPlaylists, pointName]
-                            : [selectedPlaylists[1], pointName];
-                    
-                    setSelectedPlaylists(newSelection);
-                }
-                // If clicking on a legend item, find the corresponding playlist
-                else if (clickedPoint.curveNumber > 0) {
-                    // Legend items don't give us the text, so we need to determine which one was clicked
-                    let targetPlaylist = null;
-                    
-                    if (clickedPoint.curveNumber === 1 && userPlaylist) {
-                        // User's playlist legend was clicked
-                        targetPlaylist = playlistLabels[playlistData.findIndex(p => p.playlist_id === userPlaylist.playlist_id)];
-                        console.log("Your Playlist legend clicked:", targetPlaylist);
-                    }
-                    else if (clickedPoint.curveNumber === 2 && closestPlaylist) {
-                        // Closest playlist legend was clicked
-                        targetPlaylist = playlistLabels[playlistData.findIndex(p => p.playlist_id === closestPlaylist.playlist_id)];
-                        console.log("Most Similar Playlist legend clicked:", targetPlaylist);
-                    }
-                    else if (clickedPoint.curveNumber === 3 && farthestPlaylist) {
-                        // Farthest playlist legend was clicked
-                        targetPlaylist = playlistLabels[playlistData.findIndex(p => p.playlist_id === farthestPlaylist.playlist_id)];
-                        console.log("Most Different Playlist legend clicked:", targetPlaylist);
-                    }
-                    
-                    if (targetPlaylist) {
-                        const newSelection = selectedPlaylists.includes(targetPlaylist) 
-                            ? selectedPlaylists.filter(p => p !== targetPlaylist)
-                            : selectedPlaylists.length < 2 
-                                ? [...selectedPlaylists, targetPlaylist]
-                                : [selectedPlaylists[1], targetPlaylist];
-                        
-                        setSelectedPlaylists(newSelection);
-                    }
-                }'''/*/
             });
         });
 
@@ -1383,7 +1351,7 @@ window.PlaylistDashboard = () => {
                         e.target.style.top = '0';
                         e.target.style.left = '0';
                     }
-                }, 'How It Works')
+                }, 'How To Use')
             ])
         ]);
     }
