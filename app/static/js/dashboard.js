@@ -491,28 +491,49 @@ window.PlaylistDashboard = () => {
                 xaxis: {
                     title: 'Average Popularity',
                     range: [0, 100],
-                    titlefont: { size: 12, family: "'Georgia', serif" }
+                    titlefont: { size: 12, family: "'Georgia', serif" },
+                    // Critical for better rendering:
+                    showspikes: false,
+                    spikesides: false,
+                    showbackground: true,
+                    backgroundcolor: 'rgba(242, 240, 237, 0.3)'  // Light background for better contrast
                 },
                 yaxis: {
                     title: 'Number of Genres',
                     autorange: true,
-                    titlefont: { size: 12, family: "'Georgia', serif" }
+                    titlefont: { size: 12, family: "'Georgia', serif" },
+                    showspikes: false,
+                    spikesides: false,
+                    showbackground: true,
+                    backgroundcolor: 'rgba(242, 240, 237, 0.3)'
                 },
                 zaxis: {
                     title: 'Average Year',
                     autorange: true,
                     titlefont: { size: 12, family: "'Georgia', serif" },
-                    tickformat: 'd'
+                    tickformat: 'd',
+                    showspikes: false,
+                    spikesides: false,
+                    showbackground: true,
+                    backgroundcolor: 'rgba(242, 240, 237, 0.3)'
                 },
-                camera: currentCamera || undefined,
-                aspectratio: { x: 1, y: 1, z: 0.75 }
+                camera: currentCamera || {
+                    eye: {x: 1.25, y: 1.25, z: 1.25},  // Default camera position
+                    center: {x: 0, y: 0, z: 0},         // Looking at center
+                    up: {x: 0, y: 0, z: 1}              // "Up" direction
+                },
+                aspectratio: { x: 1, y: 1, z: 0.7 },     // Slightly compressed z-axis for better view
+                
+                // This improves text and marker rendering:
+                dragmode: 'turntable',                  // Different drag mode
+                hovermode: 'closest'
             },
             margin: { l: 0, r: 0, b: 0, t: 30 },
             showlegend: userPlaylist !== null,
             legend: {
                 x: 0.8,
                 y: 0.9,
-                bgcolor: 'rgba(255,255,255,0.6)',
+                bgcolor: 'rgba(255,255,255,0.7)',      // More opaque for better readability
                 bordercolor: '#ccc',
                 borderwidth: 1,
                 font: { family: "'Georgia', serif" }
@@ -520,18 +541,36 @@ window.PlaylistDashboard = () => {
             height: 600,
             width: 1000,
             paper_bgcolor: '#F2F0ED',
-            plot_bgcolor: '#F2F0ED'
+            plot_bgcolor: '#F2F0ED',
+            
+            // These settings are critical for improved rendering:
+            uirevision: 'true',                         // Preserve UI state during updates
+            autosize: true,                             // Allow auto-sizing
         };
-
+        
+        // Enhanced config with better performance settings
         const config = {
             responsive: true,
             displayModeBar: true,
             scrollZoom: true,
-            dragmode: 'orbit',
-            hovermode: 'closest',
-            displaylogo: false
+            showAxisDragHandles: true,                 // Show axis drag handles
+            showSendToCloud: false,                    // Hide cloud button
+            modeBarButtonsToRemove: [                  // Remove unnecessary buttons
+                'lasso2d', 
+                'select2d',
+                'toggleSpikelines'
+            ],
+            toImageButtonOptions: {
+                format: 'png',                         // Preferred download format
+                filename: 'playlist_visualization',
+                height: 600,
+                width: 800,
+                scale: 2                               // Higher resolution for downloads
+            },
+            displaylogo: false,
+            doubleClick: 'reset',                      // Reset view on double click
         };
-
+        
         // Create the plot
         Plotly.newPlot(plotRef.current, traces, layout, config).then(() => {
             // Add click handler with immediate visual update
