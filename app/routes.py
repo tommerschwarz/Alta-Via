@@ -368,26 +368,29 @@ def get_playlist_metrics():
                         # Add to the list of playlists being returned to front-end
                         all_stored_playlists.append(metrics)
                         
-                        # Submit to Google Form
-                        track_ids = [track['id'] for track in metrics['tracks']]
-                        track_ids_string = ','.join(track_ids)
+                        # Submit to Google Form (only if data collection is enabled)
+                        if session.get('data_collection_enabled', True):
+                            track_ids = [track['id'] for track in metrics['tracks']]
+                            track_ids_string = ','.join(track_ids)
 
-                        form_data = {
-                            'entry.1548427': display_username,
-                            'entry.1915400927': playlist_info['name'],
-                            'entry.1933974811': str(metrics['avgPopularity']),
-                            'entry.1375160318': str(metrics['genreCount']),
-                            'entry.871544984': str(metrics['avgYear']),
-                            'entry.235692165': str(metrics['trackCount']),
-                            'entry.1816026476': str(metrics['artistCount']),
-                            'entry.2120636163': playlist_info['id'],
-                            'entry.595204572': track_ids_string,
-                            'entry.1882653839': json.dumps(str(metrics['genres']))
-                        }
-                        
-                        # Send to Google Form
-                        form_response = requests.post(GOOGLE_FORM_URL, data=form_data)
-                        logger.info(f"Form submission response: {form_response.status_code}")
+                            form_data = {
+                                'entry.1548427': display_username,
+                                'entry.1915400927': playlist_info['name'],
+                                'entry.1933974811': str(metrics['avgPopularity']),
+                                'entry.1375160318': str(metrics['genreCount']),
+                                'entry.871544984': str(metrics['avgYear']),
+                                'entry.235692165': str(metrics['trackCount']),
+                                'entry.1816026476': str(metrics['artistCount']),
+                                'entry.2120636163': playlist_info['id'],
+                                'entry.595204572': track_ids_string,
+                                'entry.1882653839': json.dumps(str(metrics['genres']))
+                            }
+
+                            # Send to Google Form
+                            form_response = requests.post(GOOGLE_FORM_URL, data=form_data)
+                            logger.info(f"Form submission response: {form_response.status_code}")
+                        else:
+                            logger.info(f"Skipping form submission - data collection disabled")
                 except Exception as e:
                     logger.error(f"Error processing wrapped playlist: {str(e)}")
         
@@ -510,6 +513,19 @@ def send_static(path):
 def logout():
     session.clear()  # Clear all session data
     return redirect(url_for('main.index'))
+
+@routes.route('/privacy-preference', methods=['POST'])
+def privacy_preference():
+    """Update user's data collection preference"""
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', True)
+        session['data_collection_enabled'] = enabled
+        logger.info(f"Data collection preference updated: {enabled}")
+        return jsonify({'success': True, 'enabled': enabled})
+    except Exception as e:
+        logger.error(f"Error updating privacy preference: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @routes.route('/year-select')
 def year_select():

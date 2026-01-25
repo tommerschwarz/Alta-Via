@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AltaVia</title>
+    <title>multiwrapped</title>
     
     <!-- React and ReactDOM -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -65,7 +65,19 @@
                     {% endfor %}
                 </select>
             </form>
-    
+
+            <!-- Privacy toggle -->
+            <div id="privacyToggle" style="
+                margin-top: 20px;
+                font-size: 13px;
+                color: #888;
+            ">
+                <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <input type="checkbox" id="dataCollectionCheckbox" style="cursor: pointer;">
+                    <span>Allow anonymous data collection for comparisons</span>
+                </label>
+            </div>
+
             <!-- Loading message (hidden by default) -->
             <div id="loadingMessage" style="
                 display: none;
@@ -95,6 +107,34 @@
             </style>
     
             <script>
+                // Initialize and sync privacy preference
+                (function() {
+                    var checkbox = document.getElementById('dataCollectionCheckbox');
+                    var privacyPref = localStorage.getItem('multiwrapped_data_collection');
+                    var enabled = privacyPref === null ? true : privacyPref === 'true';
+
+                    // Set initial checkbox state
+                    checkbox.checked = enabled;
+
+                    // Sync with backend
+                    fetch('/privacy-preference', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: enabled })
+                    }).catch(function() {});
+
+                    // Handle checkbox changes
+                    checkbox.addEventListener('change', function() {
+                        var newEnabled = this.checked;
+                        localStorage.setItem('multiwrapped_data_collection', newEnabled.toString());
+                        fetch('/privacy-preference', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ enabled: newEnabled })
+                        }).catch(function() {});
+                    });
+                })();
+
                 document.querySelector('select[name="year"]').addEventListener('change', function() {
                     // Check if a valid option is selected (not the default)
                     if (this.value) {
@@ -124,7 +164,7 @@
                     margin-bottom: 16px;
                     font-size: 16px;
                     line-height: 1.6;
-                ">We couldn't detect any wrapped playlists in your Spotify account. There are a few ways to make your playlists work with Alta Via:</p>
+                ">We couldn't detect any wrapped playlists in your Spotify account. There are a few ways to make your playlists work with multiwrapped:</p>
                 
                 <ol style="
                     color: #633514;

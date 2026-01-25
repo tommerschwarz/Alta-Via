@@ -21,6 +21,102 @@ window.PlaylistDashboard = () => {
     const [isInfoModalOpen, setIsInfoModalOpen] = React.useState(false);
     const artistHistRef = React.useRef(null);
     const genreHistRef = React.useRef(null);
+    const [isAutoRotating, setIsAutoRotating] = React.useState(true);
+    const rotationAngleRef = React.useRef(0);
+    const animationFrameRef = React.useRef(null);
+    const [checkedPlaylists, setCheckedPlaylists] = React.useState(new Set());
+    const [focalPlaylistId, setFocalPlaylistId] = React.useState(null);
+    const [showPlaylistPanel, setShowPlaylistPanel] = React.useState(false);
+    const [showPrivacyModal, setShowPrivacyModal] = React.useState(false);
+    const [dataCollectionEnabled, setDataCollectionEnabled] = React.useState(() => {
+        const stored = localStorage.getItem('multiwrapped_data_collection');
+        return stored === null ? true : stored === 'true';
+    });
+
+    // Initialize checked playlists and focal playlist when data loads
+    React.useEffect(() => {
+        if (playlistData.length > 0 && checkedPlaylists.size === 0) {
+            // Select all playlists by default
+            setCheckedPlaylists(new Set(playlistData.map(p => p.playlist_id)));
+            // Set user's playlist as focal point if available
+            const userPlaylist = playlistData.find(p => p.playlist_id === window.userPlaylistId);
+            if (userPlaylist) {
+                setFocalPlaylistId(userPlaylist.playlist_id);
+            }
+        }
+    }, [playlistData]);
+
+    // Sync privacy preference with backend
+    React.useEffect(() => {
+        fetch('/privacy-preference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: dataCollectionEnabled })
+        }).catch(err => console.log('Privacy sync failed:', err));
+    }, [dataCollectionEnabled]);
+
+    // Auto-rotate effect for the 3D scatterplot ("outer space" floating effect)
+    React.useEffect(() => {
+        if (!plotRef.current || !playlistData.length || isLoading) return;
+
+        const rotateCamera = () => {
+            if (!isAutoRotating || !plotRef.current) return;
+
+            rotationAngleRef.current += 0.002; // Slow rotation speed
+            const radius = 2.5;
+            const elevation = 0.3; // Slight elevation angle
+
+            const eye = {
+                x: radius * Math.cos(rotationAngleRef.current),
+                y: radius * Math.sin(rotationAngleRef.current),
+                z: radius * elevation + 0.5
+            };
+
+            Plotly.relayout(plotRef.current, {
+                'scene.camera.eye': eye,
+                'scene.camera.center': { x: 0, y: 0, z: 0 }
+            });
+
+            animationFrameRef.current = requestAnimationFrame(rotateCamera);
+        };
+
+        // Start rotation after a short delay
+        const startTimeout = setTimeout(() => {
+            if (isAutoRotating) {
+                animationFrameRef.current = requestAnimationFrame(rotateCamera);
+            }
+        }, 500);
+
+        return () => {
+            clearTimeout(startTimeout);
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [playlistData, isLoading, isAutoRotating]);
+
+    // Stop auto-rotation when user interacts with the plot
+    React.useEffect(() => {
+        if (!plotRef.current) return;
+
+        const stopRotation = () => {
+            setIsAutoRotating(false);
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+
+        const plotElement = plotRef.current;
+        plotElement.addEventListener('mousedown', stopRotation);
+        plotElement.addEventListener('wheel', stopRotation);
+        plotElement.addEventListener('touchstart', stopRotation);
+
+        return () => {
+            plotElement.removeEventListener('mousedown', stopRotation);
+            plotElement.removeEventListener('wheel', stopRotation);
+            plotElement.removeEventListener('touchstart', stopRotation);
+        };
+    }, [plotRef.current]);
 
     function getCurrentUsername() {
         // Get the username from a data attribute in the HTML or from a global variable
@@ -85,7 +181,7 @@ window.PlaylistDashboard = () => {
                         marginBottom: '20px',
                         color: '#633514'
                     }
-                }, 'Welcome to Alta Via'),
+                }, 'Welcome to multiwrapped'),
 
                 React.createElement('p', {
                     style: {
@@ -93,7 +189,7 @@ window.PlaylistDashboard = () => {
                         marginBottom: '15px',
                         lineHeight: '1.6'
                     }
-                }, 'Alta Via is a tool that compares your Spotify Wrapped playlists with others.'),
+                }, 'multiwrapped is a tool that compares your Spotify Wrapped playlists with others.'),
 
                 React.createElement('h3', {
                     style: {
@@ -171,7 +267,7 @@ window.PlaylistDashboard = () => {
 
                 console.log('Creating player...');
                 player = new window.Spotify.Player({
-                    name: 'Alta Via Player',
+                    name: 'multiwrapped Player',
                     getOAuthToken: cb => cb(data.token)
                 });
 
@@ -261,64 +357,22 @@ window.PlaylistDashboard = () => {
         .then(data => {
             // Check if we're getting the new response format
             if (data.playlists && Array.isArray(data.playlists)) {
-                // New format - handle additional properties
                 console.log("Received new API response format");
                 console.log("API provided user_playlist_id:", data.user_playlist_id);
-                
-                // Update the window object with these values in case they weren't set
+
                 if (data.user_playlist_id) {
                     window.userPlaylistId = data.user_playlist_id;
                     console.log("Updated window.userPlaylistId from API:", window.userPlaylistId);
                 }
-                
-                // Set total first
+
                 setTotalPlaylists(data.playlists.length);
-                
-                // Function to add playlists with a delay
-                const addPlaylist = (index) => {
-                    if (index >= data.playlists.length) {
-                        setIsLoading(false);
-                        return;
-                    }
-                    
-                    // Force a state update for each playlist
-                    setPlaylistData(prevData => {
-                        const newData = [...prevData, data.playlists[index]];
-                        console.log(`Loaded ${newData.length} of ${data.playlists.length} playlists`);
-                        return newData;
-                    });
-                    
-                    setTimeout(() => addPlaylist(index + 1), 100);
-                };
-                
-                // Start adding playlists
-                setTimeout(() => addPlaylist(0), 100);
+                setPlaylistData(data.playlists);
+                setIsLoading(false);
             } else if (Array.isArray(data) && data.length > 0) {
-                // Old format - just an array of playlists
                 console.log("Received old API response format (array of playlists)");
-                
-                // Set total first
                 setTotalPlaylists(data.length);
-                
-                // Function to add playlists with a delay
-                const addPlaylist = (index) => {
-                    if (index >= data.length) {
-                        setIsLoading(false);
-                        return;
-                    }
-                    
-                    // Force a state update for each playlist
-                    setPlaylistData(prevData => {
-                        const newData = [...prevData, data[index]];
-                        console.log(`Loaded ${newData.length} of ${data.length} playlists`);
-                        return newData;
-                    });
-                    
-                    setTimeout(() => addPlaylist(index + 1), 100);
-                };
-                
-                // Start adding playlists
-                setTimeout(() => addPlaylist(0), 100);
+                setPlaylistData(data);
+                setIsLoading(false);
             } else {
                 console.warn("Received empty or invalid data");
                 setIsLoading(false);
@@ -343,64 +397,36 @@ window.PlaylistDashboard = () => {
     // First, modify the 3D scatter plot creation effect:
     React.useEffect(() => {
         if (!plotRef.current || !playlistData || playlistData.length === 0) return;
-        
+
+        // Filter to only show checked playlists
+        const visiblePlaylists = playlistData.filter(p => checkedPlaylists.has(p.playlist_id));
+        if (visiblePlaylists.length === 0) return;
+
         // Store current camera position if it exists
         const currentCamera = plotRef.current.layout?.scene?.camera;
 
-        // Add diagnostic logging for all playlists
-        console.log("All playlists data:", playlistData.map(p => ({
-            name: p.name,
-            playlist_name: p.playlist_name,
-            avgYear: p.avgYear
-        })));
+        // Find the focal playlist (user-selected focal point)
+        const focalPlaylist = visiblePlaylists.find(p => p.playlist_id === focalPlaylistId);
+        const userPlaylist = focalPlaylist; // Use focal playlist as the reference point
 
-    
-        // Find user's selected year playlist
-        const currentUsername = window.currentUsername || '';
-        const selectedYear = window.selectedYear || '';
-
-        console.log(`!!! currentUsername IS: ${currentUsername}`);
-        console.log(`!!! userPlaylist IS: ${userPlaylist}`);
-
-        // Find the user's playlist with clear logging
-        const exactUserPlaylistName = `${currentUsername} in ${selectedYear}`;
-        const userPlaylist = playlistData.find(p => p.name === exactUserPlaylistName);
-
-        console.log(`!!! exactUserPlaylistName IS: ${exactUserPlaylistName}`);
-        console.log(`!!! userPlaylist IS: ${userPlaylist}`);
-
-        if (userPlaylist) {
-            console.log(`Found user playlist: ${userPlaylist.name}`);
-        } else {
-            console.log(`No exact match found for "${exactUserPlaylistName}"`);
-            // Log all playlist names for debugging
-            console.log("Available playlists:", playlistData.map(p => p.name));
-        }
-                
-        // If we have the user's playlist, calculate distances to all others
+        // If we have the focal playlist, calculate distances to all others
         let closestPlaylist = null;
         let farthestPlaylist = null;
 
-        const playlistLabels = playlistData.map(p => {
-            // For display purposes, prefer playlist_name which is the original name
-            // This is the key fix - we need to generate consistent labels
+        const playlistLabels = visiblePlaylists.map(p => {
             return p.playlist_name || p.name || 'Unnamed Playlist';
         });
-        
-        // In the second plot effect where distances are calculated
-        if (userPlaylist && playlistData.length > 2) {
-            // Make sure userPlaylist isn't included in distance calculations
-            const playlistsToCompare = playlistData.filter(p => 
-                p.name !== userPlaylist.name && 
+
+        // Calculate distances from focal playlist
+        if (userPlaylist && visiblePlaylists.length > 2) {
+            const playlistsToCompare = visiblePlaylists.filter(p =>
                 p.playlist_id !== userPlaylist.playlist_id
             );
-            
-            // Only proceed if we have playlists to compare
+
             if (playlistsToCompare.length > 0) {
-                // Get the ranges for scaling
-                const popularityValues = playlistData.map(p => p.avgPopularity);
-                const genreValues = playlistData.map(p => p.genreCount);
-                const yearValues = playlistData.map(p => p.avgYear);
+                const popularityValues = visiblePlaylists.map(p => p.avgPopularity);
+                const genreValues = visiblePlaylists.map(p => p.genreCount);
+                const yearValues = visiblePlaylists.map(p => p.avgYear);
                 
                 const popularityRange = Math.max(...popularityValues) - Math.min(...popularityValues) || 1;
                 const genreRange = Math.max(...genreValues) - Math.min(...genreValues) || 1;
@@ -429,59 +455,50 @@ window.PlaylistDashboard = () => {
             }
         }
         
-        // Create the main data trace
+        // Create the main data trace using visible playlists
         const dataSeries = {
             type: 'scatter3d',
             mode: 'markers+text',
-            x: playlistData.map(p => p.avgPopularity),
-            y: playlistData.map(p => p.genreCount),
-            z: playlistData.map(p => p.avgYear),
-            text: playlistLabels, // Use consistent labels for display
+            x: visiblePlaylists.map(p => p.avgPopularity),
+            y: visiblePlaylists.map(p => p.genreCount),
+            z: visiblePlaylists.map(p => p.avgYear),
+            text: playlistLabels,
             textfont: {
-                size: 14, 
+                size: 14,
                 family: 'Inter, sans-serif',
                 color: '#000000'
             },
             textposition: 'top',
             marker: {
                 size: 15,
-                color: playlistData.map((p, index) => {
-                    // Get user playlist ID from window object or session
-                    const userPlaylistId = window.userPlaylistId || '';
-
-                    // If it's selected
+                color: visiblePlaylists.map((p, index) => {
+                    // If it's selected for comparison
                     if (selectedPlaylists.includes(playlistLabels[index])) {
-                        return '#0f5c2e';  // Green for selected
+                        return '#2D3748';  // Dark slate for selected
                     }
-                    
-                    // SPECIAL PLAYLIST CHECK - User's playlist
-                    if (userPlaylistId && p.playlist_id === userPlaylistId) {
-                        // Add a custom property to identify this as the user's playlist
-                        playlistData[index].isUserPlaylist = true;
-                        return '#cb6d51';  // Terra cotta for user's playlist
+
+                    // FOCAL PLAYLIST - user's chosen focal point
+                    if (focalPlaylistId && p.playlist_id === focalPlaylistId) {
+                        return '#4A90A4';  // Blue for focal playlist
                     }
-                    
-                    // SPECIAL PLAYLIST CHECK - Closest playlist
+
+                    // Closest playlist to focal
                     if (closestPlaylist && p.playlist_id === closestPlaylist.playlist_id) {
-                        // Add a custom property to identify this as the closest playlist
-                        playlistData[index].isClosestPlaylist = true;
-                        return '#597b8c';  // Teal for closest
+                        return '#5B8C5A';  // Green for most similar
                     }
-                    
-                    // SPECIAL PLAYLIST CHECK - Farthest playlist
+
+                    // Farthest playlist from focal
                     if (farthestPlaylist && p.playlist_id === farthestPlaylist.playlist_id) {
-                        // Add a custom property to identify this as the farthest playlist
-                        playlistData[index].isFarthestPlaylist = true;
-                        return '#d5d5ce';  // Light gray for farthest
+                        return '#CC6B6B';  // Muted red for most different
                     }
-                    
+
                     // Default color
-                    return '#c9b687';  // Beige for other playlists
+                    return '#B8B0A0';  // Neutral gray-beige for other playlists
                 }),
                 opacity: 0.8
             },
             hoverinfo: 'text',
-            hovertext: playlistData.map((p, index) => 
+            hovertext: visiblePlaylists.map((p, index) =>
                 `<b>${playlistLabels[index]}</b><br>` +
                 `Popularity: ${Math.round(p.avgPopularity)}<br>` +
                 `Genres: ${p.genreCount}<br>` +
@@ -502,37 +519,50 @@ window.PlaylistDashboard = () => {
                 x: [null],
                 y: [null],
                 z: [null],
-                name: 'Your Playlist', // Clear label that this is the user's playlist
-                marker: { color: '#cb6d51', size: 10 },
+                name: 'Focal Playlist',
+                marker: { color: '#4A90A4', size: 10 },
                 showlegend: true,
                 hoverinfo: 'none'
             });
-            
+
             if (closestPlaylist) {
-                // Closest playlist legend
                 traces.push({
                     type: 'scatter3d',
                     mode: 'markers',
                     x: [null],
                     y: [null],
                     z: [null],
-                    name: 'Most Similar Playlist',
-                    marker: { color: '#597b8c', size: 10 },
+                    name: 'Most Similar',
+                    marker: { color: '#5B8C5A', size: 10 },
                     showlegend: true,
                     hoverinfo: 'none'
                 });
             }
-            
+
             if (farthestPlaylist) {
-                // Farthest playlist legend
                 traces.push({
                     type: 'scatter3d',
                     mode: 'markers',
                     x: [null],
                     y: [null],
                     z: [null],
-                    name: 'Most Different Playlist',
-                    marker: { color: '#d5d5ce', size: 10 },
+                    name: 'Most Different',
+                    marker: { color: '#CC6B6B', size: 10 },
+                    showlegend: true,
+                    hoverinfo: 'none'
+                });
+            }
+
+            // Selected for comparison legend
+            if (selectedPlaylists.length > 0) {
+                traces.push({
+                    type: 'scatter3d',
+                    mode: 'markers',
+                    x: [null],
+                    y: [null],
+                    z: [null],
+                    name: 'Selected',
+                    marker: { color: '#2D3748', size: 10 },
                     showlegend: true,
                     hoverinfo: 'none'
                 });
@@ -570,8 +600,7 @@ window.PlaylistDashboard = () => {
                 borderwidth: 1,
                 font: { family: "'Georgia', serif" }
             },
-            height: 600,
-            width: 1000,
+            autosize: true,
             paper_bgcolor: '#F2F0ED',
             plot_bgcolor: '#F2F0ED'
         };
@@ -615,13 +644,13 @@ window.PlaylistDashboard = () => {
                 plotRef.current.removeAllListeners('plotly_click');
             }
         };
-    }, [playlistData, selectedPlaylists]);
+    }, [playlistData, selectedPlaylists, checkedPlaylists, focalPlaylistId]);
 
 
     // New effect for histograms
     React.useEffect(() => {
         if (selectedPlaylists.length !== 2) return;
-        if (!yearHistRef.current || !popularityHistRef.current) return;
+        if (!yearHistRef.current) return;
 
         const playlist1 = playlistData.find(p => p.playlist_name === selectedPlaylists[0]);
         const playlist2 = playlistData.find(p => p.playlist_name === selectedPlaylists[1]);
@@ -647,82 +676,70 @@ window.PlaylistDashboard = () => {
         // Create sorted arrays of decades and counts
         const allDecades = [...new Set([...Object.keys(decadeCounts1), ...Object.keys(decadeCounts2)])].sort();
         
+        // Modern area chart for decades
         const yearTraces = [
             {
-                type: 'bar',
+                type: 'scatter',
+                mode: 'lines',
                 x: allDecades,
                 y: allDecades.map(decade => decadeCounts1[decade] || 0),
                 name: playlist1.playlist_name,
-                marker: { color: '#633514' },
-                width: 3
+                line: { color: '#4A90A4', width: 3, shape: 'spline' },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(74, 144, 164, 0.2)'
             },
             {
-                type: 'bar',
+                type: 'scatter',
+                mode: 'lines',
                 x: allDecades,
                 y: allDecades.map(decade => decadeCounts2[decade] || 0),
                 name: playlist2.playlist_name,
-                marker: { color: '#c9b687' },
-                width: 3
+                line: { color: '#5B8C5A', width: 3, shape: 'spline' },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(91, 140, 90, 0.2)'
             }
         ];
-    
+
         const yearLayout = {
             title: {
-                text: 'Tracks by Decade',
-                font: {
-                    family: "'Georgia', serif",
-                    size: 22,
-                    color: '#5D4037', // Darker brown
-                    weight: 400
-                }
+                text: 'Music Timeline',
+                font: { family: "'Georgia', serif", size: 20, color: '#333' },
+                x: 0.5,
+                xanchor: 'center'
             },
-            xaxis: { 
-                title: {
-                    text: 'Decade',
-                    font: {
-                        family: "'Georgia', serif",
-                        size: 14
-                    }
-                },
+            xaxis: {
                 tickmode: 'array',
                 ticktext: allDecades.map(d => `${d}s`),
                 tickvals: allDecades,
-                tickfont: {
-                    family: "'Georgia', serif"
-                }
+                tickfont: { family: "'Georgia', serif", size: 12 },
+                gridcolor: 'rgba(0,0,0,0.05)'
             },
-            yaxis: { 
-                title: {
-                    text: 'Number of Tracks',
-                    font: {
-                        family: "'Georgia', serif",
-                        size: 14
-                    }
-                },
-                tickfont: {
-                    family: "'Georgia', serif"
-                }
+            yaxis: {
+                title: { text: 'Tracks', font: { family: "'Georgia', serif", size: 12 } },
+                tickfont: { family: "'Georgia', serif", size: 11 },
+                gridcolor: 'rgba(0,0,0,0.05)'
             },
-            barmode: 'group',
             showlegend: true,
             height: 300,
             margin: { t: 50, r: 50, b: 40, l: 40 },
             paper_bgcolor: '#F2F0ED',
-            plot_bgcolor: '#F2F0ED',
-            hoverlabel: {
-                namelength: -1,
-                font: {
-                    family: "'Georgia', serif"
-                }
-            },
+            height: 280,
+            margin: { l: 50, r: 30, t: 50, b: 40 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
             legend: {
-                font: {
-                    family: "'Georgia', serif"
-                }
+                orientation: 'h',
+                y: -0.2,
+                x: 0.5,
+                xanchor: 'center',
+                font: { family: "'Georgia', serif", size: 11 }
+            },
+            hoverlabel: {
+                bgcolor: '#fff',
+                font: { family: "'Georgia', serif" }
             }
         };
-        
-    
+
         // Popularity density curve
         const generateKDE = (data, bandwidth = 5) => {
             const x = Array.from({length: 101}, (_, i) => i);
@@ -739,89 +756,133 @@ window.PlaylistDashboard = () => {
     
         const popularityLayout = {
             title: {
-                text: 'Distribution of Track Popularity',
-                font: {
-                    family: "'Georgia', serif",
-                    size: 22,
-                    color: '#6D4C41', // Medium brown
-                    weight: 400,
-                    style: 'italic'
-                }
+                text: 'Popularity Distribution',
+                font: { family: "'Georgia', serif", size: 20, color: '#333' },
+                x: 0.5,
+                xanchor: 'center'
             },
-            xaxis: { 
-                title: {
-                    text: 'Popularity Score',
-                    font: {
-                        family: "'Georgia', serif",
-                        size: 14
-                    }
-                },
+            xaxis: {
                 range: [0, 100],
-                tickfont: {
-                    family: "'Georgia', serif"
-                },
-                annotations: [{
-                    text: '← More Obscure     More Popular →',
-                    font: {
-                        size: 12,
-                        family: "'Georgia', serif"
-                    },
-                    showarrow: false,
-                    yref: 'paper',
-                    y: -0.2,
-                    xref: 'paper',
-                    x: 0.5,
-                    yanchor: 'top'
-                }]
+                tickfont: { family: "'Georgia', serif", size: 11 },
+                gridcolor: 'rgba(0,0,0,0.05)',
+                title: { text: 'Popularity Score', font: { family: "'Georgia', serif", size: 12 } }
             },
-            yaxis: { 
+            yaxis: {
                 showticklabels: false,
                 zeroline: false,
-                showgrid: false,
-                title: ''
+                showgrid: false
             },
-            showlegend: true,
-            height: 300,
-            margin: { t: 50, r: 20, b: 60, l: 20 },
-            paper_bgcolor: '#F2F0ED',
-            plot_bgcolor: '#F2F0ED',
-            hoverlabel: {
-                font: {
-                    family: "'Georgia', serif"
-                }
-            },
+            annotations: [{
+                text: '← Obscure · Popular →',
+                font: { size: 11, family: "'Georgia', serif", color: '#888' },
+                showarrow: false,
+                yref: 'paper',
+                y: -0.18,
+                xref: 'paper',
+                x: 0.5
+            }],
+            height: 280,
+            margin: { t: 50, r: 30, b: 60, l: 30 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
             legend: {
-                font: {
-                    family: "'Georgia', serif"
-                }
+                orientation: 'h',
+                y: -0.25,
+                x: 0.5,
+                xanchor: 'center',
+                font: { family: "'Georgia', serif", size: 11 }
+            },
+            hoverlabel: {
+                bgcolor: '#fff',
+                font: { family: "'Georgia', serif" }
             }
         };
-        
+
         const popularityTraces = [
             {
                 type: 'scatter',
                 x: kde1.x,
                 y: kde1.y,
                 name: playlist1.playlist_name,
-                line: { color: '#633514', width: 2 },
+                line: { color: '#4A90A4', width: 3, shape: 'spline' },
                 fill: 'tozeroy',
-                fillcolor: 'rgba(99, 53, 20, 0.2)',
-                hovertemplate: 'Popularity: %{x}<br><extra></extra>'  // Only show x value on hover
+                fillcolor: 'rgba(74, 144, 164, 0.15)',
+                hovertemplate: 'Popularity: %{x}<extra></extra>'
             },
             {
                 type: 'scatter',
                 x: kde2.x,
                 y: kde2.y,
                 name: playlist2.playlist_name,
-                line: { color: '#c9b687', width: 2 },
+                line: { color: '#5B8C5A', width: 3, shape: 'spline' },
                 fill: 'tozeroy',
-                fillcolor: 'rgba(201, 182, 135, 0.2)',
-                hovertemplate: 'Popularity: %{x}<br><extra></extra>'  // Only show x value on hover
+                fillcolor: 'rgba(91, 140, 90, 0.15)',
+                hovertemplate: 'Popularity: %{x}<extra></extra>'
             }
         ];
     
-        Plotly.newPlot(yearHistRef.current, yearTraces, yearLayout, { responsive: true });
-        Plotly.newPlot(popularityHistRef.current, popularityTraces, popularityLayout, { responsive: true });
+        // Combined plot with subplots
+        const combinedTraces = [
+            // Timeline traces (top subplot)
+            { ...yearTraces[0], xaxis: 'x', yaxis: 'y' },
+            { ...yearTraces[1], xaxis: 'x', yaxis: 'y' },
+            // Popularity traces (bottom subplot)
+            { ...popularityTraces[0], xaxis: 'x2', yaxis: 'y2', showlegend: false },
+            { ...popularityTraces[1], xaxis: 'x2', yaxis: 'y2', showlegend: false }
+        ];
+
+        const combinedLayout = {
+            grid: { rows: 2, columns: 1, pattern: 'independent', roworder: 'top to bottom' },
+            xaxis: {
+                tickmode: 'array',
+                ticktext: allDecades.map(d => `${d}s`),
+                tickvals: allDecades,
+                tickfont: { family: "'Georgia', serif", size: 11 },
+                gridcolor: 'rgba(0,0,0,0.05)',
+                domain: [0, 1],
+                anchor: 'y'
+            },
+            yaxis: {
+                title: { text: 'Tracks', font: { family: "'Georgia', serif", size: 11 } },
+                tickfont: { family: "'Georgia', serif", size: 10 },
+                gridcolor: 'rgba(0,0,0,0.05)',
+                domain: [0.55, 1],
+                anchor: 'x'
+            },
+            xaxis2: {
+                range: [0, 100],
+                tickfont: { family: "'Georgia', serif", size: 11 },
+                gridcolor: 'rgba(0,0,0,0.05)',
+                domain: [0, 1],
+                anchor: 'y2',
+                title: { text: 'Popularity', font: { family: "'Georgia', serif", size: 11 } }
+            },
+            yaxis2: {
+                showticklabels: false,
+                zeroline: false,
+                showgrid: false,
+                domain: [0, 0.4],
+                anchor: 'x2'
+            },
+            annotations: [
+                { text: 'Music Timeline', x: 0.5, y: 1.08, xref: 'paper', yref: 'paper', showarrow: false, font: { family: "'Georgia', serif", size: 14, color: '#333' } },
+                { text: 'Popularity Distribution', x: 0.5, y: 0.42, xref: 'paper', yref: 'paper', showarrow: false, font: { family: "'Georgia', serif", size: 14, color: '#333' } }
+            ],
+            height: 340,
+            margin: { l: 50, r: 30, t: 40, b: 50 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            legend: {
+                orientation: 'h',
+                y: -0.15,
+                x: 0.5,
+                xanchor: 'center',
+                font: { family: "'Georgia', serif", size: 11 }
+            },
+            hoverlabel: { bgcolor: '#fff', font: { family: "'Georgia', serif" } }
+        };
+
+        Plotly.newPlot(yearHistRef.current, combinedTraces, combinedLayout, { responsive: true });
     }, [selectedPlaylists, playlistData]);
 
     // Add Venn diagram effect
@@ -1073,84 +1134,57 @@ window.PlaylistDashboard = () => {
 
         console.log("Artist Overlap:", artistOverlap);
 
-        // Prepare traces for Plotly
+        // Compact horizontal bar chart for artists
+        const artists = artistOverlap.map(item => item.artist).reverse();
+        const p1Counts = artistOverlap.map(item => item.playlist1Tracks).reverse();
+        const p2Counts = artistOverlap.map(item => item.playlist2Tracks).reverse();
+
         const traces = [
             {
-                x: artistOverlap.map(item => item.artist),
-                y: artistOverlap.map(item => item.playlist1Tracks),
-                name: playlist1.playlist_name,
+                x: p1Counts,
+                y: artists,
                 type: 'bar',
-                marker: { color: '#633514' },
-                hovertemplate: '%{y} tracks in ' + playlist1.playlist_name + '<extra></extra>'
+                orientation: 'h',
+                name: playlist1.playlist_name,
+                marker: { color: '#4A90A4', opacity: 0.85 },
+                hovertemplate: '<b>%{y}</b>: %{x} tracks<extra></extra>'
             },
             {
-                x: artistOverlap.map(item => item.artist),
-                y: artistOverlap.map(item => item.playlist2Tracks),
-                name: playlist2.playlist_name,
+                x: p2Counts,
+                y: artists,
                 type: 'bar',
-                marker: { color: '#c9b687' },
-                hovertemplate: '%{y} tracks in ' + playlist2.playlist_name + '<extra></extra>'
+                orientation: 'h',
+                name: playlist2.playlist_name,
+                marker: { color: '#5B8C5A', opacity: 0.85 },
+                hovertemplate: '<b>%{y}</b>: %{x} tracks<extra></extra>'
             }
         ];
 
         const artistLayout = {
-            title: {
-                text: 'Top Shared Artists',
-                font: {
-                    family: "'Georgia', serif",
-                    size: 22,
-                    color: '#6D4C41'
-                }
-            },
+            title: { text: 'Shared Artists', font: { family: "'Georgia', serif", size: 14, color: '#333' }, x: 0.5 },
+            barmode: 'group',
+            bargap: 0.3,
             xaxis: {
-                title: {
-                    text: 'Artists',
-                    font: {
-                        family: "'Georgia', serif",
-                        size: 14
-                    },
-                    standoff: 40  // Add some space between title and axis
-                },
-                tickangle: -45,
-                tickfont: {
-                    family: "'Georgia', serif",
-                    size: 11
-                },
-                automargin: true
+                title: { text: 'Tracks', font: { family: "'Georgia', serif", size: 11 } },
+                tickfont: { family: "'Georgia', serif", size: 10 },
+                gridcolor: 'rgba(0,0,0,0.05)'
             },
             yaxis: {
-                title: {
-                    text: 'Number of Tracks',
-                    font: {
-                        family: "'Georgia', serif",
-                        size: 14
-                    }
-                },
-                tickfont: {
-                    family: "'Georgia', serif"
-                }
+                tickfont: { family: "'Georgia', serif", size: 11 },
+                automargin: true
             },
-            barmode: 'group',
-            height: 500,  // Increased height
-            margin: { 
-                b: 300,   // Increased bottom margin
-                l: 50, 
-                r: 50,
-                t: 50 
-            },
-            paper_bgcolor: '#F2F0ED',
-            plot_bgcolor: '#F2F0ED',
+            height: 260,
+            margin: { l: 90, r: 15, t: 25, b: 45 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
             legend: {
-                font: {
-                    family: "'Georgia', serif"
-                }
+                orientation: 'h',
+                y: -0.22,
+                x: 0.5,
+                xanchor: 'center',
+                font: { family: "'Georgia', serif", size: 9 }
             },
-            hoverlabel: {
-                bgcolor: '#FFF',
-                bordercolor: '#633514',
-                font: { family: "'Georgia', serif" },
-                namelength: -1  // Show full playlist name in hover
-            }
+            hoverlabel: { bgcolor: '#fff', font: { family: "'Georgia', serif", size: 10 } }
         };
 
         // Only plot if we have common artists
@@ -1196,20 +1230,22 @@ window.PlaylistDashboard = () => {
             theta: topGenres,
             name: playlist1.playlist_name,
             fill: 'toself',
-            fillcolor: 'rgba(99, 53, 20, 0.2)',
-            line: { color: '#633514' },
-            hovertemplate: '%{r} tracks in ' + playlist1.playlist_name + '<extra></extra>'
+            fillcolor: 'rgba(74, 144, 164, 0.15)',
+            line: { color: '#4A90A4', width: 2 },
+            marker: { size: 6, color: '#4A90A4' },
+            hovertemplate: '<b>%{theta}</b><br>%{r} tracks<extra></extra>'
         };
-        
+
         const trace2 = {
             type: 'scatterpolar',
             r: topGenres.map(genre => genres2[genre] || 0),
             theta: topGenres,
             name: playlist2.playlist_name,
             fill: 'toself',
-            fillcolor: 'rgba(201, 182, 135, 0.2)',
-            line: { color: '#c9b687' },
-            hovertemplate: '%{r} tracks in ' + playlist2.playlist_name + '<extra></extra>'
+            fillcolor: 'rgba(91, 140, 90, 0.15)',
+            line: { color: '#5B8C5A', width: 2 },
+            marker: { size: 6, color: '#5B8C5A' },
+            hovertemplate: '<b>%{theta}</b><br>%{r} tracks<extra></extra>'
         };
 
         const layout = {
@@ -1217,32 +1253,133 @@ window.PlaylistDashboard = () => {
                 radialaxis: {
                     visible: true,
                     range: [0, maxCount],
-                    tickfont: { family: "'Georgia', serif" }
+                    tickfont: { family: "'Georgia', serif", size: 10, color: '#888' },
+                    gridcolor: 'rgba(0,0,0,0.08)'
                 },
                 angularaxis: {
-                    tickfont: { family: "'Georgia', serif" }
+                    tickfont: { family: "'Georgia', serif", size: 11 },
+                    gridcolor: 'rgba(0,0,0,0.08)'
                 },
-                bgcolor: '#F2F0ED'
+                bgcolor: 'transparent'
             },
             showlegend: true,
             title: {
-                text: 'Genre Distribution',
-                font: {
-                    family: "'Georgia', serif",
-                    size: 22,
-                    color: '#633514'
-                }
+                text: 'Genre Fingerprint',
+                font: { family: "'Georgia', serif", size: 14, color: '#333' },
+                x: 0.5,
+                xanchor: 'center'
             },
-            paper_bgcolor: '#F2F0ED',
-            plot_bgcolor: '#F2F0ED',
-            height: 500,
-            margin: { t: 50, b: 30, l: 50, r: 50 }
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            height: 270,
+            margin: { t: 40, b: 40, l: 40, r: 40 },
+            legend: {
+                orientation: 'h',
+                y: -0.1,
+                x: 0.5,
+                xanchor: 'center',
+                font: { family: "'Georgia', serif", size: 11 }
+            }
         };
 
         Plotly.newPlot(genreHistRef.current, [trace1, trace2], layout, { responsive: true });
     }, [selectedPlaylists, playlistData]);
 
 
+    // Check if user is logged in (has username and year selected)
+    const isLoggedIn = window.currentUsername && window.selectedYear && window.selectedYear !== 'None';
+
+    // Show loading screen for logged-in users waiting for data
+    if (playlistData.length === 0 && isLoggedIn) {
+        return React.createElement('div', {
+            style: {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '100vh',
+                backgroundColor: '#F2F0ED',
+                padding: '40px'
+            }
+        }, [
+            React.createElement('style', null, `
+                @keyframes orbit {
+                    from { transform: rotate(0deg) translateX(40px) rotate(0deg); }
+                    to { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+                }
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-10px); }
+                }
+            `),
+            // Orbiting animation
+            React.createElement('div', {
+                style: {
+                    position: 'relative',
+                    width: '100px',
+                    height: '100px',
+                    marginBottom: '40px'
+                }
+            }, [
+                React.createElement('div', {
+                    style: {
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        backgroundColor: '#633514'
+                    }
+                }),
+                React.createElement('div', {
+                    style: {
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: '#c9b687',
+                        animation: 'orbit 2s linear infinite'
+                    }
+                }),
+                React.createElement('div', {
+                    style: {
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#597b8c',
+                        animation: 'orbit 3s linear infinite reverse'
+                    }
+                })
+            ]),
+            React.createElement('h2', {
+                style: {
+                    fontFamily: "'Georgia', serif",
+                    fontSize: '26px',
+                    color: '#633514',
+                    marginBottom: '15px',
+                    fontWeight: 'normal',
+                    animation: 'float 2s ease-in-out infinite'
+                }
+            }, 'Building your musical universe'),
+            React.createElement('p', {
+                style: {
+                    fontFamily: "'Georgia', serif",
+                    fontSize: '16px',
+                    color: '#8b7355',
+                    fontStyle: 'italic'
+                }
+            }, `Loading ${window.selectedYear} wrapped playlists...`)
+        ]);
+    }
+
+    // Show welcome screen for non-logged-in users
     if (playlistData.length === 0) {
         return React.createElement('div', {
             style: {
@@ -1253,17 +1390,18 @@ window.PlaylistDashboard = () => {
                 minHeight: '100vh',
                 backgroundColor: '#F2F0ED',
                 padding: '20px',
-                gap: '20px'  // Space between frame and button
+                gap: '20px'
             }
         }, [
             isInfoModalOpen && InfoModal(),
-            // White frame with image
+            // White frame with image - smaller size
             React.createElement('div', {
                 style: {
-                    padding: '10px',
+                    padding: '8px',
                     backgroundColor: '#FFFFFF',
-                    maxWidth: '800px',
-                    width: '100%'
+                    maxWidth: '500px',
+                    width: '90%',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                 }
             },
                 React.createElement('img', {
@@ -1272,7 +1410,9 @@ window.PlaylistDashboard = () => {
                     style: {
                         width: '100%',
                         height: 'auto',
-                        display: 'block'
+                        display: 'block',
+                        maxHeight: '50vh',
+                        objectFit: 'cover'
                     }
                 })
             ),
@@ -1283,7 +1423,6 @@ window.PlaylistDashboard = () => {
                     alignItems: 'center'
                 }
             }, [
-                // Login with Spotify button (existing code)
                 React.createElement('button', {
                     onClick: () => window.location.href = '/login',
                     style: {
@@ -1317,8 +1456,6 @@ window.PlaylistDashboard = () => {
                         e.target.style.left = '0';
                     }
                 }, 'Login with Spotify'),
-
-                // New "How It Works" button
                 React.createElement('button', {
                     onClick: () => setIsInfoModalOpen(true),
                     style: {
@@ -1359,10 +1496,13 @@ window.PlaylistDashboard = () => {
     return React.createElement('div', {
         style: {
             padding: '20px',
-            maxWidth: '1200px',
+            width: '100%',
+            maxWidth: '100vw',
+            boxSizing: 'border-box',
             margin: '0 auto',
             backgroundColor: '#F2F0ED',
-            minHeight: '100vh'  // Make sure it covers full viewport height
+            minHeight: '100vh',
+            overflow: 'hidden'
         }
     }, [// Loading bar
         isLoading && React.createElement('div', {
@@ -1394,81 +1534,422 @@ window.PlaylistDashboard = () => {
             ])
         ]),
     
-        // Add a style tag for the animation
+        // Add style tags for animations
         React.createElement('style', null, `
             @keyframes loading {
-                from {
-                    transform: translateX(-100%);
-                }
-                to {
-                    transform: translateX(400%);
-                }
+                from { transform: translateX(-100%); }
+                to { transform: translateX(400%); }
             }
+            @keyframes pulse {
+                0%, 100% { opacity: 0.4; transform: scale(1); }
+                50% { opacity: 1; transform: scale(1.1); }
+            }
+            @keyframes float {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-10px); }
+            }
+            @keyframes orbit {
+                from { transform: rotate(0deg) translateX(30px) rotate(0deg); }
+                to { transform: rotate(360deg) translateX(30px) rotate(-360deg); }
+            }
+            .plot-container { transition: opacity 0.5s ease-in-out; }
+            .playlist-item:hover { background-color: rgba(99, 53, 20, 0.08); }
+            .focal-star { color: #f4b942; font-size: 16px; cursor: pointer; }
+            .focal-star:hover { transform: scale(1.2); }
         `),
-    
-        React.createElement('div', {
-            ref: plotRef,
+
+        // Floating Playlist Selection Panel (sidebar style)
+        !isLoading && React.createElement('div', {
             style: {
-                width: '100%',
-                marginBottom: '40px',
-                height: '600px',  // Match your plot height
-                display: isLoading ? 'flex' : 'block', // Change to block when not loading
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: isLoading ? '#fff' : 'transparent',
-                borderRadius: '8px',
-                position: 'relative'  // Add this
+                position: 'fixed',
+                left: showPlaylistPanel ? '0' : '-280px',
+                top: '80px',
+                width: '280px',
+                maxHeight: 'calc(100vh - 120px)',
+                backgroundColor: '#fff',
+                borderRadius: '0 12px 12px 0',
+                boxShadow: '2px 0 20px rgba(0,0,0,0.1)',
+                transition: 'left 0.3s ease',
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column'
             }
-        }, isLoading ? [
-            // Loading state content
+        }, [
+            // Toggle button (always visible, sticks out)
             React.createElement('div', {
+                key: 'toggle',
+                onClick: () => setShowPlaylistPanel(!showPlaylistPanel),
                 style: {
-                    textAlign: 'center'
+                    position: 'absolute',
+                    right: '-36px',
+                    top: '10px',
+                    width: '36px',
+                    height: '36px',
+                    backgroundColor: '#fff',
+                    borderRadius: '0 8px 8px 0',
+                    boxShadow: '2px 0 10px rgba(0,0,0,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                }
+            }, showPlaylistPanel ? '◀' : '▶'),
+
+            // Panel header
+            React.createElement('div', {
+                key: 'header',
+                style: {
+                    padding: '15px',
+                    borderBottom: '1px solid #eee',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                 }
             }, [
-                React.createElement('h3', {
+                React.createElement('span', {
+                    key: 'title',
+                    style: { fontFamily: "'Georgia', serif", fontSize: '14px', fontWeight: '600', color: '#333' }
+                }, 'Playlists'),
+                React.createElement('span', {
+                    key: 'count',
+                    style: { fontSize: '11px', color: '#888', backgroundColor: '#f0f0f0', padding: '2px 8px', borderRadius: '10px' }
+                }, `${checkedPlaylists.size}/${playlistData.length}`)
+            ]),
+
+            // Quick actions
+            React.createElement('div', {
+                key: 'actions',
+                style: { padding: '10px 15px', borderBottom: '1px solid #eee', display: 'flex', gap: '8px' }
+            }, [
+                React.createElement('button', {
+                    key: 'all',
+                    onClick: () => setCheckedPlaylists(new Set(playlistData.map(p => p.playlist_id))),
                     style: {
-                        fontFamily: 'Inter, sans-serif',
-                        marginBottom: '20px',
-                        color: '#633514'
+                        flex: 1, padding: '5px', fontSize: '11px', border: '1px solid #ddd',
+                        borderRadius: '4px', backgroundColor: '#fff', cursor: 'pointer'
                     }
-                }, 'Loading your playlists...'),
-                React.createElement('div', {
+                }, 'All'),
+                React.createElement('button', {
+                    key: 'none',
+                    onClick: () => setCheckedPlaylists(new Set()),
                     style: {
-                        fontSize: '24px',
-                        color: '#633514',
-                        fontWeight: 'bold',
-                        marginBottom: '20px'
+                        flex: 1, padding: '5px', fontSize: '11px', border: '1px solid #ddd',
+                        borderRadius: '4px', backgroundColor: '#fff', cursor: 'pointer'
                     }
-                }, `${playlistData.length} / ${totalPlaylists} playlists loaded`),
+                }, 'None')
+            ]),
+
+            // Playlist list (scrollable)
+            React.createElement('div', {
+                key: 'list',
+                style: { flex: 1, overflowY: 'auto', padding: '10px 0' }
+            }, playlistData.map((playlist) =>
                 React.createElement('div', {
+                    key: playlist.playlist_id,
+                    className: 'playlist-item',
                     style: {
-                        width: '200px',
-                        height: '4px',
-                        backgroundColor: '#e5e5e5',
-                        borderRadius: '2px',
-                        overflow: 'hidden',
-                        margin: '0 auto'
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '6px 15px',
+                        gap: '8px',
+                        cursor: 'pointer'
+                    },
+                    onClick: () => {
+                        const newSet = new Set(checkedPlaylists);
+                        if (newSet.has(playlist.playlist_id)) {
+                            newSet.delete(playlist.playlist_id);
+                        } else {
+                            newSet.add(playlist.playlist_id);
+                        }
+                        setCheckedPlaylists(newSet);
                     }
                 }, [
+                    // Checkbox
+                    React.createElement('input', {
+                        key: 'cb',
+                        type: 'checkbox',
+                        checked: checkedPlaylists.has(playlist.playlist_id),
+                        onChange: (e) => {
+                            e.stopPropagation();
+                            const newSet = new Set(checkedPlaylists);
+                            if (e.target.checked) {
+                                newSet.add(playlist.playlist_id);
+                            } else {
+                                newSet.delete(playlist.playlist_id);
+                            }
+                            setCheckedPlaylists(newSet);
+                        },
+                        style: { cursor: 'pointer', width: '14px', height: '14px', flexShrink: 0 }
+                    }),
+                    // Focal star
+                    React.createElement('span', {
+                        key: 'star',
+                        onClick: (e) => { e.stopPropagation(); setFocalPlaylistId(playlist.playlist_id); },
+                        style: {
+                            color: '#f4b942',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            opacity: focalPlaylistId === playlist.playlist_id ? 1 : 0.25,
+                            transition: 'opacity 0.2s, transform 0.2s',
+                            flexShrink: 0
+                        },
+                        title: 'Set as focal playlist'
+                    }, '★'),
+                    // Playlist name
+                    React.createElement('span', {
+                        key: 'name',
+                        style: {
+                            fontFamily: "'Georgia', serif",
+                            fontSize: '12px',
+                            color: focalPlaylistId === playlist.playlist_id ? '#4A90A4' : '#444',
+                            fontWeight: focalPlaylistId === playlist.playlist_id ? '600' : '400',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                        }
+                    }, playlist.playlist_name)
+                ])
+            )),
+
+            // Legend at bottom
+            React.createElement('div', {
+                key: 'legend',
+                style: { padding: '10px 15px', borderTop: '1px solid #eee', fontSize: '10px', color: '#888' }
+            }, '★ Click star to set focal point')
+        ]),
+
+        // Privacy settings button (top-right)
+        !isLoading && React.createElement('button', {
+            onClick: () => setShowPrivacyModal(true),
+            style: {
+                position: 'fixed',
+                top: '20px',
+                right: '20px',
+                padding: '8px 16px',
+                backgroundColor: '#fff',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: '#633514',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                zIndex: 100,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+            }
+        }, ['⚙', ' Privacy']),
+
+        // Privacy Modal
+        showPrivacyModal && React.createElement('div', {
+            style: {
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            },
+            onClick: () => setShowPrivacyModal(false)
+        }, React.createElement('div', {
+            style: {
+                backgroundColor: '#fff',
+                borderRadius: '12px',
+                padding: '30px',
+                maxWidth: '500px',
+                width: '90%',
+                maxHeight: '80vh',
+                overflowY: 'auto',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+            },
+            onClick: (e) => e.stopPropagation()
+        }, [
+            React.createElement('h2', {
+                key: 'title',
+                style: { margin: '0 0 20px', color: '#633514', fontFamily: "'Georgia', serif" }
+            }, 'Privacy Settings'),
+
+            React.createElement('div', {
+                key: 'toggle-section',
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '15px',
+                    backgroundColor: '#f9f9f9',
+                    borderRadius: '8px',
+                    marginBottom: '20px'
+                }
+            }, [
+                React.createElement('span', { key: 'label' }, 'Allow anonymous data collection'),
+                React.createElement('button', {
+                    key: 'toggle',
+                    onClick: () => {
+                        const newValue = !dataCollectionEnabled;
+                        setDataCollectionEnabled(newValue);
+                        localStorage.setItem('multiwrapped_data_collection', newValue.toString());
+                    },
+                    style: {
+                        width: '50px',
+                        height: '26px',
+                        borderRadius: '13px',
+                        border: 'none',
+                        backgroundColor: dataCollectionEnabled ? '#5B8C5A' : '#ccc',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'background-color 0.2s'
+                    }
+                }, React.createElement('span', {
+                    style: {
+                        position: 'absolute',
+                        top: '3px',
+                        left: dataCollectionEnabled ? '27px' : '3px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        backgroundColor: '#fff',
+                        transition: 'left 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                    }
+                }))
+            ]),
+
+            React.createElement('div', {
+                key: 'info',
+                style: { fontSize: '14px', lineHeight: '1.6', color: '#555' }
+            }, [
+                React.createElement('p', { key: 'note', style: { margin: '0 0 15px', padding: '10px', backgroundColor: '#fff8e1', borderRadius: '6px', fontSize: '13px' } },
+                    'This setting applies to future sessions. Data from your current session may have already been collected.'),
+
+                React.createElement('h4', { key: 'h1', style: { color: '#633514', margin: '0 0 10px' } }, 'What data is collected?'),
+                React.createElement('p', { key: 'p1', style: { margin: '0 0 15px' } },
+                    'When enabled, we collect anonymized playlist statistics (average popularity, genre counts, release years) to help compare your music taste with others. Your Spotify username and playlist ID are stored to prevent duplicates.'),
+
+                React.createElement('h4', { key: 'h2', style: { color: '#633514', margin: '0 0 10px' } }, 'How to delete existing data'),
+                React.createElement('p', { key: 'p2', style: { margin: '0 0 15px' } },
+                    'To request deletion of your previously submitted data, contact the app maintainer with your Spotify username.')
+            ]),
+
+            React.createElement('button', {
+                key: 'close',
+                onClick: () => setShowPrivacyModal(false),
+                style: {
+                    width: '100%',
+                    padding: '12px',
+                    backgroundColor: '#633514',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    marginTop: '10px'
+                }
+            }, 'Close')
+        ])),
+
+        React.createElement('div', {
+            ref: plotRef,
+            className: 'plot-container',
+            style: {
+                width: '100%',
+                marginBottom: '30px',
+                height: 'min(70vh, 600px)',
+                minHeight: '400px',
+                display: isLoading ? 'flex' : 'block',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#fff',
+                borderRadius: '12px',
+                position: 'relative',
+                boxShadow: isLoading ? 'none' : '0 4px 20px rgba(0, 0, 0, 0.08)',
+                overflow: 'hidden'
+            }
+        }, isLoading ? [
+            // Loading state - cosmic/space themed
+            React.createElement('div', {
+                style: {
+                    textAlign: 'center',
+                    padding: '40px'
+                }
+            }, [
+                // Orbiting dots animation
+                React.createElement('div', {
+                    style: {
+                        position: 'relative',
+                        width: '80px',
+                        height: '80px',
+                        margin: '0 auto 30px'
+                    }
+                }, [
+                    // Center dot
                     React.createElement('div', {
                         style: {
-                            width: `${totalPlaylists ? (playlistData.length / totalPlaylists) * 100 : 0}%`,
-                            height: '100%',
-                            backgroundColor: '#633514',
-                            transition: 'width 0.3s ease'
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: '#633514'
+                        }
+                    }),
+                    // Orbiting dot 1
+                    React.createElement('div', {
+                        style: {
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: '#c9b687',
+                            animation: 'orbit 2s linear infinite'
+                        }
+                    }),
+                    // Orbiting dot 2
+                    React.createElement('div', {
+                        style: {
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            backgroundColor: '#597b8c',
+                            animation: 'orbit 3s linear infinite reverse'
                         }
                     })
-                ])
+                ]),
+                React.createElement('h3', {
+                    style: {
+                        fontFamily: "'Georgia', serif",
+                        fontSize: '22px',
+                        marginBottom: '12px',
+                        color: '#633514',
+                        fontWeight: 'normal',
+                        animation: 'float 2s ease-in-out infinite'
+                    }
+                }, 'Building your musical universe'),
+                React.createElement('p', {
+                    style: {
+                        fontFamily: "'Georgia', serif",
+                        fontSize: '14px',
+                        color: '#8b7355',
+                        fontStyle: 'italic'
+                    }
+                }, 'Gathering playlists from across the cosmos...')
             ])
         ] : []),
 
-        // Add the Back button here, AFTER the plotRef div
+        // Back button - more subtle, positioned better
         React.createElement('div', {
             style: {
                 textAlign: 'center',
-                marginBottom: '30px',
-                display: isLoading ? 'none' : 'block' // Only show when not loading
+                marginBottom: '20px',
+                display: isLoading ? 'none' : 'block'
             }
         }, [
             React.createElement('button', {
@@ -1476,80 +1957,324 @@ window.PlaylistDashboard = () => {
                     window.location.href = '/logout';
                 },
                 style: {
-                    backgroundColor: '#FFFFFF',
-                    border: '2px solid #633514',
-                    padding: '8px 15px',
-                    boxShadow: '2px 2px 0px #633514',
+                    backgroundColor: 'transparent',
+                    border: '1px solid #997b66',
+                    padding: '8px 20px',
                     fontFamily: "'Georgia', serif",
-                    fontSize: '14px',
+                    fontSize: '13px',
+                    color: '#997b66',
                     cursor: 'pointer',
-                    minWidth: '140px',
-                    textAlign: 'center',
-                    position: 'relative',
-                    top: '0',
-                    left: '0',
-                    transition: 'all 0.1s'
+                    borderRadius: '20px',
+                    transition: 'all 0.2s ease'
                 },
-                onMouseDown: (e) => {
-                    e.target.style.boxShadow = '1px 1px 0px #633514';
-                    e.target.style.top = '1px';
-                    e.target.style.left = '1px';
-                },
-                onMouseUp: (e) => {
-                    e.target.style.boxShadow = '2px 2px 0px #633514';
-                    e.target.style.top = '0';
-                    e.target.style.left = '0';
+                onMouseEnter: (e) => {
+                    e.target.style.backgroundColor = '#997b66';
+                    e.target.style.color = '#fff';
                 },
                 onMouseLeave: (e) => {
-                    e.target.style.boxShadow = '2px 2px 0px #633514';
-                    e.target.style.top = '0';
-                    e.target.style.left = '0';
+                    e.target.style.backgroundColor = 'transparent';
+                    e.target.style.color = '#997b66';
                 }
-            }, 'Back to Menu')
+            }, '← Back to Menu')
         ]),
 
         // Selection instruction
-        selectedPlaylists.length < 2 && React.createElement('p', {
-            style: { textAlign: 'center', marginBottom: '20px' }
-        }, `Click to select ${2 - selectedPlaylists.length} more playlist${selectedPlaylists.length === 1 ? '' : 's'} to compare`),
+        selectedPlaylists.length < 2 && React.createElement('div', {
+            style: {
+                textAlign: 'center',
+                marginBottom: '30px',
+                padding: '16px 24px',
+                backgroundColor: 'rgba(99, 53, 20, 0.08)',
+                borderRadius: '8px',
+                maxWidth: '400px',
+                margin: '0 auto 30px'
+            }
+        }, [
+            React.createElement('p', {
+                style: {
+                    fontFamily: "'Georgia', serif",
+                    fontSize: '16px',
+                    color: '#633514',
+                    margin: 0
+                }
+            }, selectedPlaylists.length === 0
+                ? 'Click on two playlists to compare them'
+                : `Select one more playlist to compare with ${selectedPlaylists[0]}`)
+        ]),
 
         // Comparison section
         selectedPlaylists.length === 2 && React.createElement('div', {
             style: {
                 marginTop: '40px',
-                padding: '20px',
-                border: '1px solid #E5E5E5',
-                borderRadius: '8px',
-                backgroundColor: '#F2F0ED'
+                padding: '30px',
+                borderRadius: '12px',
+                backgroundColor: '#fff',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+                animation: 'fadeIn 0.5s ease-out'
             }
         }, [
-            React.createElement('h2', {
-                style: { 
-                    marginBottom: '20px', 
-                    textAlign: 'center',
-                    fontFamily: "'Georgia', serif",
-                    fontWeight: 500,
-                    fontSize: '24px'
+            React.createElement('style', null, `
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
-            }, `${selectedPlaylists[0]} & ${selectedPlaylists[1]}`),
-            
-            // Venn diagram
-            React.createElement('div', {
-                style: { textAlign: 'center', marginBottom: '30px' }
-            }, [React.createElement('h3', {
-                style: { 
-                    marginBottom: '20px',
+            `),
+            React.createElement('h2', {
+                style: {
+                    marginBottom: '30px',
+                    textAlign: 'center',
                     fontFamily: "'Georgia', serif",
                     fontWeight: 400,
-                    fontSize: '22px',
-                    textAlign: 'center',
-                    color: '#8B7D6B', // Muted brown
-                    letterSpacing: '0.5px'
+                    fontSize: '26px',
+                    color: '#633514',
+                    borderBottom: '2px solid #c9b687',
+                    paddingBottom: '15px'
                 }
-            }, 'Track Overlap'),
+            }, `${selectedPlaylists[0]} & ${selectedPlaylists[1]}`),
+
+            // Summary cards
+            (() => {
+                const p1 = playlistData.find(p => p.playlist_name === selectedPlaylists[0]);
+                const p2 = playlistData.find(p => p.playlist_name === selectedPlaylists[1]);
+                if (!p1?.tracks || !p2?.tracks) return null;
+
+                const getTrackId = t => `${t.name}___${t.artists.join(',')}`.toLowerCase();
+                const tracks1 = new Set(p1.tracks.map(getTrackId));
+                const tracks2 = new Set(p2.tracks.map(getTrackId));
+                const sharedTrackIds = [...tracks1].filter(t => tracks2.has(t));
+                const sharedTracks = sharedTrackIds.length;
+
+                const artists1 = new Set(p1.tracks.flatMap(t => t.artists));
+                const artists2 = new Set(p2.tracks.flatMap(t => t.artists));
+                const sharedArtists = [...artists1].filter(a => artists2.has(a)).length;
+
+                const avgPopDiff = Math.abs(p1.avgPopularity - p2.avgPopularity).toFixed(0);
+
+                // Calculate similarity percentile - compare this pair to all other pairs
+                const calcPairSimilarity = (pa, pb) => {
+                    if (!pa?.tracks || !pb?.tracks) return 0;
+                    const ta = new Set(pa.tracks.map(getTrackId));
+                    const tb = new Set(pb.tracks.map(getTrackId));
+                    const shared = [...ta].filter(t => tb.has(t)).length;
+                    const artistsA = new Set(pa.tracks.flatMap(t => t.artists));
+                    const artistsB = new Set(pb.tracks.flatMap(t => t.artists));
+                    const sharedArt = [...artistsA].filter(a => artistsB.has(a)).length;
+                    const popDiff = Math.abs(pa.avgPopularity - pb.avgPopularity);
+                    const yearDiff = Math.abs(pa.avgYear - pb.avgYear);
+                    // Combined score: shared tracks + artists, minus differences
+                    return shared * 2 + sharedArt - popDiff * 0.1 - yearDiff * 0.05;
+                };
+
+                const currentPairScore = calcPairSimilarity(p1, p2);
+                let lessSimCount = 0;
+                let totalPairs = 0;
+                for (let i = 0; i < playlistData.length; i++) {
+                    for (let j = i + 1; j < playlistData.length; j++) {
+                        const score = calcPairSimilarity(playlistData[i], playlistData[j]);
+                        if (score < currentPairScore) lessSimCount++;
+                        totalPairs++;
+                    }
+                }
+                const percentile = totalPairs > 1 ? Math.round((lessSimCount / totalPairs) * 100) : 50;
+
+                return React.createElement('div', {
+                    style: {
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '20px',
+                        marginBottom: '40px',
+                        flexWrap: 'wrap'
+                    }
+                }, [
+                    // Similarity percentile card
+                    React.createElement('div', {
+                        key: 'sim',
+                        style: {
+                            background: 'linear-gradient(135deg, #5B8C5A 0%, #4A7A49 100%)',
+                            borderRadius: '12px',
+                            padding: '20px 30px',
+                            textAlign: 'center',
+                            color: '#fff',
+                            minWidth: '160px',
+                            boxShadow: '0 4px 15px rgba(91, 140, 90, 0.3)'
+                        }
+                    }, [
+                        React.createElement('div', {
+                            style: { fontSize: '32px', fontWeight: 'bold', fontFamily: "'Georgia', serif" }
+                        }, `Top ${100 - percentile}%`),
+                        React.createElement('div', {
+                            style: { fontSize: '12px', opacity: 0.9, marginTop: '5px', lineHeight: 1.3 }
+                        }, `More similar than ${percentile}% of pairs`)
+                    ]),
+                    // Shared tracks card
+                    React.createElement('div', {
+                        key: 'tracks',
+                        style: {
+                            background: 'linear-gradient(135deg, #4A90A4 0%, #3A7A8F 100%)',
+                            borderRadius: '12px',
+                            padding: '20px 30px',
+                            textAlign: 'center',
+                            color: '#fff',
+                            minWidth: '140px',
+                            boxShadow: '0 4px 15px rgba(74, 144, 164, 0.3)'
+                        }
+                    }, [
+                        React.createElement('div', {
+                            style: { fontSize: '36px', fontWeight: 'bold', fontFamily: "'Georgia', serif" }
+                        }, sharedTracks),
+                        React.createElement('div', {
+                            style: { fontSize: '13px', opacity: 0.9, marginTop: '5px' }
+                        }, 'Shared Tracks')
+                    ]),
+                    // Shared artists card
+                    React.createElement('div', {
+                        key: 'artists',
+                        style: {
+                            background: 'linear-gradient(135deg, #8B7355 0%, #6B5545 100%)',
+                            borderRadius: '12px',
+                            padding: '20px 30px',
+                            textAlign: 'center',
+                            color: '#fff',
+                            minWidth: '140px',
+                            boxShadow: '0 4px 15px rgba(139, 115, 85, 0.3)'
+                        }
+                    }, [
+                        React.createElement('div', {
+                            style: { fontSize: '36px', fontWeight: 'bold', fontFamily: "'Georgia', serif" }
+                        }, sharedArtists),
+                        React.createElement('div', {
+                            style: { fontSize: '13px', opacity: 0.9, marginTop: '5px' }
+                        }, 'Common Artists')
+                    ]),
+                    // Popularity difference card
+                    React.createElement('div', {
+                        key: 'pop',
+                        style: {
+                            background: 'linear-gradient(135deg, #CC6B6B 0%, #B55A5A 100%)',
+                            borderRadius: '12px',
+                            padding: '20px 30px',
+                            textAlign: 'center',
+                            color: '#fff',
+                            minWidth: '140px',
+                            boxShadow: '0 4px 15px rgba(204, 107, 107, 0.3)'
+                        }
+                    }, [
+                        React.createElement('div', {
+                            style: { fontSize: '36px', fontWeight: 'bold', fontFamily: "'Georgia', serif" }
+                        }, `±${avgPopDiff}`),
+                        React.createElement('div', {
+                            style: { fontSize: '13px', opacity: 0.9, marginTop: '5px' }
+                        }, 'Popularity Gap')
+                    ]),
+                    // Top Shared Tracks Album Grid (inside the cards container)
+                    sharedTracks > 0 && React.createElement('div', {
+                        key: 'shared-tracks',
+                        style: {
+                            width: '100%',
+                            marginTop: '20px',
+                            textAlign: 'center'
+                        }
+                    }, [
+                        React.createElement('h4', {
+                            key: 'title',
+                            style: {
+                                fontFamily: "'Georgia', serif",
+                                fontSize: '14px',
+                                color: '#666',
+                                marginBottom: '12px',
+                                fontWeight: 400
+                            }
+                        }, 'Shared Tracks'),
+                        React.createElement('div', {
+                            key: 'grid',
+                            style: {
+                                display: 'flex',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                flexWrap: 'wrap'
+                            }
+                        }, sharedTrackIds.slice(0, 8).map((trackId, idx) => {
+                            const track = p1.tracks.find(t => getTrackId(t) === trackId);
+                            if (!track) return null;
+                            return React.createElement('div', {
+                                key: idx,
+                                style: {
+                                    position: 'relative',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s'
+                                },
+                                onClick: () => window.open(`https://open.spotify.com/track/${track.id}`, '_blank'),
+                                onMouseEnter: (e) => e.currentTarget.style.transform = 'scale(1.05)',
+                                onMouseLeave: (e) => e.currentTarget.style.transform = 'scale(1)'
+                            }, [
+                                React.createElement('img', {
+                                    key: 'img',
+                                    src: track.album_image || '',
+                                    alt: track.name,
+                                    style: {
+                                        width: '60px',
+                                        height: '60px',
+                                        borderRadius: '6px',
+                                        objectFit: 'cover',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                                    }
+                                }),
+                                React.createElement('div', {
+                                    key: 'label',
+                                    style: {
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+                                        borderRadius: '0 0 6px 6px',
+                                        padding: '3px',
+                                        fontSize: '8px',
+                                        color: '#fff',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                    }
+                                }, track.name)
+                            ]);
+                        }))
+                    ])
+                ]);
+            })(),
+
+            // Venn diagram
+            React.createElement('div', {
+                style: {
+                    textAlign: 'center',
+                    marginBottom: '40px',
+                    padding: '20px',
+                    backgroundColor: '#F2F0ED',
+                    borderRadius: '8px'
+                }
+            }, [
+                React.createElement('h3', {
+                    style: {
+                        marginBottom: '20px',
+                        fontFamily: "'Georgia', serif",
+                        fontWeight: 400,
+                        fontSize: '20px',
+                        textAlign: 'center',
+                        color: '#633514',
+                        letterSpacing: '0.5px'
+                    }
+                }, 'Track Overlap'),
+                React.createElement('p', {
+                    style: {
+                        fontFamily: "'Georgia', serif",
+                        fontSize: '13px',
+                        color: '#8b7355',
+                        marginBottom: '15px',
+                        fontStyle: 'italic'
+                    }
+                }, 'Click on any section to see the tracks'),
                 React.createElement('div', {
                     ref: vennRef,
-                    style: { 
+                    style: {
                         height: '300px',
                         width: '100%',
                         display: 'flex',
@@ -1649,29 +2374,50 @@ window.PlaylistDashboard = () => {
                 )
             ]),
             
-            // Year histogram
+            // Combined Timeline + Popularity chart
             React.createElement('div', {
                 ref: yearHistRef,
-                style: { height: '300px', marginBottom: '30px' }
-            }),
-            
-            // Popularity distribution
-            React.createElement('div', {
-                ref: popularityHistRef,
-                style: { height: '300px', marginBottom: '30px' }
-            }),
-
-            // new genre histogram
-            React.createElement('div', {
-                ref: artistHistRef,
-                style: { height: '300px', marginBottom: '30px' }
+                style: {
+                    height: '360px',
+                    marginBottom: '20px',
+                    padding: '15px',
+                    backgroundColor: '#F2F0ED',
+                    borderRadius: '8px'
+                }
             }),
 
-            // new genre histogram
+            // Two-column layout for Artist and Genre charts
             React.createElement('div', {
-                ref: genreHistRef,
-                style: { height: '300px', marginBottom: '30px' }
-            })
+                style: {
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                    gap: '20px',
+                    marginBottom: '20px'
+                }
+            }, [
+                // Artist comparison
+                React.createElement('div', {
+                    ref: artistHistRef,
+                    key: 'artist',
+                    style: {
+                        height: '300px',
+                        padding: '15px',
+                        backgroundColor: '#F2F0ED',
+                        borderRadius: '8px'
+                    }
+                }),
+                // Genre radar chart
+                React.createElement('div', {
+                    ref: genreHistRef,
+                    key: 'genre',
+                    style: {
+                        height: '300px',
+                        padding: '15px',
+                        backgroundColor: '#F2F0ED',
+                        borderRadius: '8px'
+                    }
+                })
+            ])
         ])
 
     ]);

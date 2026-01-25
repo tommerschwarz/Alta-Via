@@ -1,16 +1,18 @@
 # run.py
-from app import create_app
 import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Only load from .env file if it exists (development environment)
+# Load environment BEFORE importing app (which imports config.py)
 env_path = Path('.env')
 if env_path.exists():
     print("Loading environment from .env file")
     load_dotenv()
 else:
     print("No .env file found, using environment variables")
+
+# Import app AFTER environment is loaded
+from app import create_app
 
 # Force the correct redirect URI in production
 if os.environ.get('RENDER') or os.environ.get('IS_PRODUCTION'):
