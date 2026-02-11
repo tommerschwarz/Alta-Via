@@ -169,6 +169,10 @@ def callback():
         
     except Exception as e:
         logger.error(f"Error in callback: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # Show error to user instead of silently redirecting
+        session['auth_error'] = str(e)
         return redirect(url_for('main.index'))
 
 @routes.route('/')
@@ -182,19 +186,21 @@ def index():
     
     # Check if user is authenticated but has no playlists
     no_playlists = False
-    
+    auth_error = session.pop('auth_error', None)  # Get and clear any auth error
+
     # If user has token but no playlists were found in the callback, show the no playlists message
     if 'token_info' in session and session.get('has_wrapped_playlists') is False:
         no_playlists = True
         logger.info("User is authenticated but has no playlists, showing no-playlists message")
-    
-    logger.info(f"Rendering index with: username={username}, year={selected_year}, ID={user_playlist_id}, no_playlists={no_playlists}")
-    
-    return render_template('index.html', 
-                          selected_year=selected_year, 
+
+    logger.info(f"Rendering index with: username={username}, year={selected_year}, ID={user_playlist_id}, no_playlists={no_playlists}, auth_error={auth_error}")
+
+    return render_template('index.html',
+                          selected_year=selected_year,
                           username=username,
                           user_playlist_id=user_playlist_id,
-                          no_playlists=no_playlists)
+                          no_playlists=no_playlists,
+                          auth_error=auth_error)
 
 @routes.route('/journey')
 def journey():

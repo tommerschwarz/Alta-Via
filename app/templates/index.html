@@ -37,8 +37,32 @@
     <script src="https://cdn.jsdelivr.net/npm/venn.js@0.2.20/build/venn.js"></script>
 </head>
 <body>
+    <!-- Auth Error Message -->
+    {% if auth_error %}
+    <div style="
+        max-width: 600px;
+        margin: 60px auto;
+        padding: 40px;
+        text-align: center;
+        background-color: #F2F0ED;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    ">
+        <h2 style="color: #633514; font-family: Inter, sans-serif;">Login Error</h2>
+        <p style="color: #633514; margin: 20px 0;">Something went wrong during login:</p>
+        <pre style="background: rgba(99,53,20,0.1); padding: 15px; border-radius: 8px; text-align: left; overflow-x: auto; font-size: 12px;">{{ auth_error }}</pre>
+        <a href="{{ url_for('main.login') }}" style="
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background-color: #633514;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        ">Try Again</a>
+    </div>
+    {% elif no_playlists %}
     <!-- No Playlists Message - This will only be shown when no_playlists is True -->
-    {% if no_playlists %}
     <div class="no-playlists-container" style="
         max-width: 600px;
         margin: 60px auto;
