@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Your Wrapped Journey | multiwrapped</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Condensed:wght@400;700&family=Georgia&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #F2F0ED;
+            font-family: 'Georgia', serif;
+        }
+        #journey-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header-font {
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+    </style>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="journey-container"></div>
+    <script>
+        window.currentUsername = "{{ username }}";
+        window.availableYears = {{ available_years | tojson | safe }};
+    </script>
+
+    <!-- Load the Journey component (with cache-busting) -->
+    <script type="text/babel" src="{{ url_for('static', filename='js/journey.js') }}?v={{ range(1000, 9999) | random }}"></script>
+
+    <!-- Initialize after loading -->
+    <script type="text/babel">
+        setTimeout(() => {
+            const container = document.getElementById('journey-container');
+            const root = ReactDOM.createRoot(container);
+            root.render(React.createElement(JourneyOverview));
+        }, 100);
+    </script>
+</body>
+</html>

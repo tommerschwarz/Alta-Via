@@ -274,3 +274,87 @@ def get_playlist_metrics_by_id(sp, playlist_id, display_name=None, original_name
     except Exception as e:
         logger.error(f"Error getting metrics for {original_name}: {str(e)}")
         return None
+
+
+def calculate_cross_year_stats(playlists_by_year):
+    """
+    Calculate cross-year statistics from user's wrapped playlists.
+
+    Args:
+        playlists_by_year: dict mapping year -> {tracks: [...], artists: [...]}
+
+    Returns:
+        dict with recurring_tracks, recurring_artists, total_unique_tracks, total_unique_artists
+    """
+    # Track appearances: track_id -> {name, artists, years: set}
+    track_appearances = {}
+    # Artist appearances: artist_name -> {years: set, track_count: int}
+    artist_appearances = {}
+
+    for year, playlist_data in playlists_by_year.items():
+        tracks = playlist_data.get('tracks', [])
+
+        for track in tracks:
+            track_id = track.get('id')
+            track_name = track.get('name', 'Unknown')
+            track_artists = track.get('artists', [])
+            album_image = track.get('album_image')
+
+            if track_id:
+                if track_id not in track_appearances:
+                    track_appearances[track_id] = {
+                        'id': track_id,
+                        'name': track_name,
+                        'artists': track_artists,
+                        'album_image': album_image,
+                        'years': set()
+                    }
+                track_appearances[track_id]['years'].add(year)
+
+            # Count artist appearances
+            for artist_name in track_artists:
+                if artist_name not in artist_appearances:
+                    artist_appearances[artist_name] = {
+                        'name': artist_name,
+                        'years': set(),
+                        'track_count': 0
+                    }
+                artist_appearances[artist_name]['years'].add(year)
+                artist_appearances[artist_name]['track_count'] += 1
+
+    # Find recurring tracks (appear in 2+ years)
+    recurring_tracks = []
+    for track_id, data in track_appearances.items():
+        if len(data['years']) >= 2:
+            recurring_tracks.append({
+                'id': data['id'],
+                'name': data['name'],
+                'artists': data['artists'],
+                'album_image': data['album_image'],
+                'years': sorted(list(data['years']), reverse=True),
+                'appearances': len(data['years'])
+            })
+
+    # Sort by most appearances, then alphabetically
+    recurring_tracks.sort(key=lambda x: (-x['appearances'], x['name']))
+
+    # Find recurring artists (appear in 2+ years)
+    recurring_artists = []
+    for artist_name, data in artist_appearances.items():
+        if len(data['years']) >= 2:
+            recurring_artists.append({
+                'name': data['name'],
+                'years': sorted(list(data['years']), reverse=True),
+                'year_count': len(data['years']),
+                'total_tracks': data['track_count']
+            })
+
+    # Sort by most years, then by track count
+    recurring_artists.sort(key=lambda x: (-x['year_count'], -x['total_tracks'], x['name']))
+
+    return {
+        'recurring_tracks': recurring_tracks,
+        'recurring_artists': recurring_artists,
+        'total_unique_tracks': len(track_appearances),
+        'total_unique_artists': len(artist_appearances)
+    }

@@ -163,8 +163,9 @@ def callback():
             flash("No wrapped playlists found in your account.")
             return redirect(url_for('main.index'))
             
-        # If playlists found, go to year selection
-        return redirect(url_for('main.year_select'))
+        # If playlists found, go to journey overview
+        logger.info(f"Redirecting to journey page with {len(available_years)} years")
+        return redirect(url_for('main.journey'))
         
     except Exception as e:
         logger.error(f"Error in callback: {str(e)}")
@@ -195,9 +196,135 @@ def index():
                           user_playlist_id=user_playlist_id,
                           no_playlists=no_playlists)
 
-@routes.route('/select-year', methods=['POST'])
+@routes.route('/journey')
+def journey():
+    """Show the journey overview page with all wrapped years"""
+    logger.info("Journey page requested")
+
+    if 'token_info' not in session:
+        logger.warning("Journey requested but not logged in, redirecting to login")
+        return redirect(url_for('main.login'))
+
+    wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+    available_years = sorted(list(wrapped_playlist_map.keys()), reverse=True)
+
+    if not available_years:
+        logger.info("No wrapped playlists found, redirecting to index")
+        return redirect(url_for('main.index'))
+
+    logger.info(f"Rendering journey with {len(available_years)} years available")
+    return render_template('journey.html',
+                          username=session.get('display_name', ''),
+                          available_years=available_years)
+
+
+@routes.route('/api/journey-data')
+def get_journey_data():
+    """Get all wrapped playlists data with cross-year statistics"""
+    logger.info("Starting journey data request")
+
+    if 'token_info' not in session:
+        logger.error("No token in session")
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        token_info = session['token_info']
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+
+        user_info = sp.current_user()
+        display_username = user_info['display_name']
+
+        wrapped_playlist_map = session.get('wrapped_playlist_map', {})
+        years = sorted(list(wrapped_playlist_map.keys()), reverse=True)
+
+        # Fetch playlist data for each year
+        playlists_data = {}
+        playlists_by_year = {}  # For cross-year stats calculation
+
+        for year in years:
+            playlist_info = wrapped_playlist_map.get(year, {})
+            playlist_id = playlist_info.get('id')
+
+            if not playlist_id:
+                continue
+
+            try:
+                tracks_response = sp.playlist_tracks(playlist_id)
+
+                tracks = []
+                popularities = []
+                release_years = []
+                artists_set = set()
+
+                for item in tracks_response['items']:
+                    if item['track'] is None:
+                        continue
+
+                    track = item['track']
+                    album_images = track['album']['images']
+                    album_image = None
+                    if album_images:
+                        album_image = album_images[1]['url'] if len(album_images) > 1 else album_images[0]['url']
+
+                    track_artists = [artist['name'] for artist in track['artists']]
+
+                    tracks.append({
+                        'id': track['id'],
+                        'name': track['name'],
+                        'artists': track_artists,
+                        'album_image': album_image
+                    })
+
+                    popularities.append(track['popularity'])
+                    release_years.append(int(track['album']['release_date'][:4]))
+                    artists_set.update(track_artists)
+
+                from statistics import mean
+                avg_popularity = mean(popularities) if popularities else 0
+                avg_year = mean(release_years) if release_years else 0
+
+                playlists_data[year] = {
+                    'playlist_id': playlist_id,
+                    'playlist_name': playlist_info.get('name', ''),
+                    'track_count': len(tracks),
+                    'artist_count': len(artists_set),
+                    'avg_popularity': round(avg_popularity, 1),
+                    'avg_year': round(avg_year, 1),
+                    'tracks': tracks
+                }
+
+                # Store for cross-year calculation
+                playlists_by_year[year] = {'tracks': tracks}
+
+                logger.info(f"Fetched {len(tracks)} tracks for year {year}")
+
+            except Exception as e:
+                logger.error(f"Error fetching playlist for year {year}: {str(e)}")
+                continue
+
+        # Calculate cross-year statistics
+        cross_year_stats = spotify_utils.calculate_cross_year_stats(playlists_by_year)
+
+        response_data = {
+            'username': display_username,
+            'total_wrapped_count': len(years),
+            'years': years,
+            'playlists': playlists_data,
+            'cross_year_stats': cross_year_stats
+        }
+
+        logger.info(f"Returning journey data: {len(years)} years, {cross_year_stats['total_unique_tracks']} unique tracks")
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error in get_journey_data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@routes.route('/select-year', methods=['POST', 'GET'])
 def select_year():
-    year = request.form.get('year')
+    # Support both POST form data and GET query params
+    year = request.form.get('year') or request.args.get('year')
     if year:
         session['selected_year'] = year
         

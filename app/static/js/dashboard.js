@@ -1944,15 +1944,43 @@ window.PlaylistDashboard = () => {
             ])
         ] : []),
 
-        // Back button - more subtle, positioned better
+        // Navigation buttons - Back to Journey and Logout
         React.createElement('div', {
             style: {
                 textAlign: 'center',
                 marginBottom: '20px',
-                display: isLoading ? 'none' : 'block'
+                display: isLoading ? 'none' : 'flex',
+                justifyContent: 'center',
+                gap: '12px'
             }
         }, [
             React.createElement('button', {
+                key: 'back-to-journey',
+                onClick: () => {
+                    window.location.href = '/journey';
+                },
+                style: {
+                    backgroundColor: 'transparent',
+                    border: '1px solid #633514',
+                    padding: '8px 20px',
+                    fontFamily: "'Georgia', serif",
+                    fontSize: '13px',
+                    color: '#633514',
+                    cursor: 'pointer',
+                    borderRadius: '20px',
+                    transition: 'all 0.2s ease'
+                },
+                onMouseEnter: (e) => {
+                    e.target.style.backgroundColor = '#633514';
+                    e.target.style.color = '#fff';
+                },
+                onMouseLeave: (e) => {
+                    e.target.style.backgroundColor = 'transparent';
+                    e.target.style.color = '#633514';
+                }
+            }, '← Back to Journey'),
+            React.createElement('button', {
+                key: 'logout',
                 onClick: () => {
                     window.location.href = '/logout';
                 },
@@ -1975,7 +2003,7 @@ window.PlaylistDashboard = () => {
                     e.target.style.backgroundColor = 'transparent';
                     e.target.style.color = '#997b66';
                 }
-            }, '← Back to Menu')
+            }, 'Logout')
         ]),
 
         // Selection instruction
