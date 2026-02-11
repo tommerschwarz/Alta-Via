@@ -16,9 +16,10 @@ def get_spotify_oauth(app):
         client_id=app.config['SPOTIFY_CLIENT_ID'],
         client_secret=app.config['SPOTIFY_CLIENT_SECRET'],
         redirect_uri=app.config['SPOTIFY_REDIRECT_URI'],
-        scope = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state", # scope
+        scope="streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state",
         cache_handler=None,
-        show_dialog=False
+        show_dialog=True,  # Always show login dialog for each user
+        open_browser=False  # Prevent any file caching behavior
     )
 
 def get_user_playlists(sp):
